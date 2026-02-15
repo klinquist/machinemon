@@ -70,10 +70,14 @@ func main() {
 		}
 	}
 
-	// Ensure database directory exists
+	// Ensure database and binaries directories exist
 	dbDir := filepath.Dir(cfg.DatabasePath)
 	if err := os.MkdirAll(dbDir, 0750); err != nil {
 		logger.Error("failed to create database directory", "path", dbDir, "err", err)
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(cfg.BinariesDir, 0755); err != nil {
+		logger.Error("failed to create binaries directory", "path", cfg.BinariesDir, "err", err)
 		os.Exit(1)
 	}
 
