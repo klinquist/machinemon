@@ -38,7 +38,7 @@ export default function ClientDetail() {
       setProcesses(data.processes || []);
       setChecks(data.checks || []);
 
-      const rangeHours = range === '1h' ? 1 : range === '6h' ? 6 : range === '7d' ? 168 : 24;
+      const rangeHours = range === '1h' ? 1 : range === '6h' ? 6 : range === '7d' ? 168 : range === '14d' ? 336 : 24;
       const from = new Date(Date.now() - rangeHours * 3600000).toISOString();
       const [historyData, alertsData] = await Promise.all([
         fetchMetrics(id, from),
@@ -122,7 +122,7 @@ export default function ClientDetail() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-gray-700">History</h2>
             <div className="flex gap-1">
-              {['1h', '6h', '24h', '7d'].map(r => (
+              {['1h', '6h', '24h', '7d', '14d'].map(r => (
                 <button
                   key={r}
                   onClick={() => setRange(r)}

@@ -162,6 +162,20 @@ export default function Settings() {
             </div>
           ))}
         </div>
+        <div className="mt-4">
+          <label className="block text-sm text-gray-600 mb-1">Metric Retention (days)</label>
+          <input
+            type="number"
+            min={1}
+            value={settings['metrics_retention_days'] || '14'}
+            onChange={e => setSettings({ ...settings, metrics_retention_days: e.target.value })}
+            className="w-full max-w-xs px-3 py-1.5 border rounded text-sm"
+            placeholder="14"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            CPU, memory, disk, process, and check history older than this is automatically deleted daily.
+          </p>
+        </div>
         <button onClick={handleSaveThresholds} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
           Save Thresholds
         </button>

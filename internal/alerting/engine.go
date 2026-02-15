@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -309,8 +310,14 @@ func (e *Engine) fireAlert(clientID, alertType, severity, message string) {
 }
 
 func (e *Engine) cleanupOldData() {
-	metricsRetention := 30 * 24 * time.Hour // 30 days
-	alertsRetention := 90 * 24 * time.Hour  // 90 days
+	metricsRetentionDays := 14 // default
+	if v, _ := e.store.GetSetting("metrics_retention_days"); v != "" {
+		if days, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && days > 0 {
+			metricsRetentionDays = days
+		}
+	}
+	metricsRetention := time.Duration(metricsRetentionDays) * 24 * time.Hour
+	alertsRetention := 90 * 24 * time.Hour // 90 days
 
 	deleted, err := e.store.PruneOldData(metricsRetention, alertsRetention)
 	if err != nil {
@@ -318,6 +325,6 @@ func (e *Engine) cleanupOldData() {
 		return
 	}
 	if deleted > 0 {
-		e.logger.Info("pruned old data", "rows_deleted", deleted)
+		e.logger.Info("pruned old data", "rows_deleted", deleted, "metrics_retention_days", metricsRetentionDays)
 	}
 }
