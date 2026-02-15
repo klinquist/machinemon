@@ -126,6 +126,20 @@ The `--setup` flow is menu-based and supports:
 - Configure script checks (add/remove, optional `run_as_user`)
 - Save and exit or cancel
 
+Script checks are first-class client monitors. They run on every check-in interval and alert when unhealthy:
+- Exit code `0` = healthy
+- Exit code `1` (or any non-zero) = unhealthy/alert
+
+Example `client.toml` script check:
+
+```toml
+[[check]]
+type = "script"
+friendly_name = "Redis ping"
+script = "redis-cli ping | grep -q PONG"
+run_as_user = "redis"
+```
+
 After saving setup:
 - If the client service is already running, setup prompts to restart the service so config changes take effect.
 - Setup does not run the daemon interactively.
