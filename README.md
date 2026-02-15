@@ -9,11 +9,13 @@ MachineMon consists of a **server** (single Go binary with embedded web dashboar
 ## Features
 
 - **System Metrics** — CPU, memory, and disk usage tracked over time with configurable warning/critical thresholds
+- **History Graphs + Retention** — Graph CPU/memory/disk history per client with automatic data pruning (default 14 days)
 - **Process Monitoring** — Watch specific processes by name or regex. Get alerted when they die or restart (PID change)
 - **Health Checks** — Run custom scripts on each check-in. Exit 0 = healthy, non-zero = unhealthy. Extensible to HTTP checks and file-touch checks
 - **Web Dashboard** — Modern React SPA embedded in the server binary. View all your machines at a glance
 - **Alerting** — Twilio (SMS), Pushover (push notifications), and SMTP (email). Smart hysteresis — only alerts on state changes, not every check-in
 - **Per-Client Thresholds** — Override global defaults for individual machines
+- **Client Naming** — Rename clients in the UI without changing hostnames
 - **Muting** — Silence alerts for a client, optionally with an expiry time
 - **Self-Hosted Binary Distribution** — The server can serve client binaries, so you can install clients with a single `curl | sh` command
 - **Built-in HTTPS** — Let's Encrypt autocert, self-signed, or manual certificates. Or run behind nginx
@@ -103,6 +105,16 @@ machinemon-client --setup \
 # Install as a system service
 sudo machinemon-client --service-install
 ```
+
+The `--setup` flow is menu-based and supports:
+- Configure server settings
+- Configure monitored processes (add/remove)
+- Configure script checks (add/remove, optional `run_as_user`)
+- Save and exit or cancel
+
+After saving setup:
+- If the client service is already running, setup prompts to restart the service so config changes take effect.
+- Setup does not run the daemon interactively.
 
 ### 4. See It in Action
 
@@ -310,6 +322,9 @@ Each `[[check]]` block defines a health check:
 | `run_as_user` | Optional Linux/macOS username for script execution (requires client running as root to switch users) |
 
 **Script checks** run via `/bin/sh -c` with a 30-second timeout. Exit code 0 = healthy, anything else = unhealthy. The last 500 characters of output are captured and stored.
+If `run_as_user` is set and the client process is not running as root (or as that same user), the check is marked unhealthy with an execution error.
+
+Script checks run on the normal check-in cadence (`check_in_interval`, default 120 seconds). Alerts for failing checks are transition-based (`healthy -> unhealthy`), not repeated every check-in while already failing.
 
 **Planned check types:**
 - `http` — Check URL, verify status code and response time
@@ -477,6 +492,18 @@ Configure notification channels via the web dashboard (Settings page) or the API
 | `check_failed` | Critical | Health check went from healthy to unhealthy |
 | `check_recovered` | Info | Health check went from unhealthy to healthy |
 
+## Dashboard Guide
+
+- **Dashboard page (`/`)**: shows all clients, current status, and latest CPU/memory/disk gauges.
+- **Client detail page (`/clients/{id}`)**:
+  - top section: current CPU/memory/disk gauges
+  - next section: watched processes table
+  - **History** panel: CPU/memory/disk graphs with range shortcuts (`1h`, `6h`, `24h`, `7d`, `14d`)
+  - checks table
+  - collapsed by default: per-client thresholds and recent alerts
+  - rename client via the pencil icon next to the client name
+  - delete a watched process from the server via the process row delete action
+
 ### Default Thresholds
 
 | Metric | Warning | Critical |
@@ -511,6 +538,12 @@ curl -u admin:password https://monitor.example.com/api/v1/admin/clients
 # Get client details (includes latest metrics, processes, checks)
 curl -u admin:password https://monitor.example.com/api/v1/admin/clients/{id}
 
+# Rename client display name (blank to clear custom name)
+curl -X PUT -u admin:password \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Prod API Node"}' \
+  https://monitor.example.com/api/v1/admin/clients/{id}/name
+
 # Delete client (soft delete — will reappear if client checks in again)
 curl -X DELETE -u admin:password https://monitor.example.com/api/v1/admin/clients/{id}
 
@@ -538,6 +571,10 @@ curl -u admin:password \
 
 # Get process snapshots
 curl -u admin:password https://monitor.example.com/api/v1/admin/clients/{id}/processes
+
+# Delete watched process from server by friendly name
+curl -X DELETE -u admin:password \
+  "https://monitor.example.com/api/v1/admin/clients/{id}/processes?friendly_name=worker"
 ```
 
 ### Alerts
@@ -573,6 +610,8 @@ curl -X DELETE -u admin:password https://monitor.example.com/api/v1/admin/provid
 curl -X POST -u admin:password https://monitor.example.com/api/v1/admin/providers/{id}/test
 ```
 
+`POST /providers/{id}/test` returns delivery details when available (for example Pushover API status/response), and the web UI shows those details in the result banner.
+
 ### Settings
 
 ```bash
@@ -582,7 +621,7 @@ curl -u admin:password https://monitor.example.com/api/v1/admin/settings
 # Update settings
 curl -X PUT -u admin:password \
   -H "Content-Type: application/json" \
-  -d '{"offline_threshold_seconds":"300","cpu_warn_pct_default":"85"}' \
+  -d '{"offline_threshold_seconds":"300","cpu_warn_pct_default":"85","metrics_retention_days":"14"}' \
   https://monitor.example.com/api/v1/admin/settings
 
 # Change admin or client password
@@ -591,6 +630,14 @@ curl -X PUT -u admin:password \
   -d '{"type":"admin","password":"new_password"}' \
   https://monitor.example.com/api/v1/admin/password
 ```
+
+Useful settings keys:
+- `offline_threshold_seconds` (default `240`)
+- `cpu_warn_pct_default`, `cpu_crit_pct_default`
+- `mem_warn_pct_default`, `mem_crit_pct_default`
+- `disk_warn_pct_default`, `disk_crit_pct_default`
+- `metrics_retention_days` (default `14`) for metrics/process/check history pruning
+- `alerts_retention_days` (optional; if unset, follows `metrics_retention_days`)
 
 ### Downloads (Public, No Auth)
 
