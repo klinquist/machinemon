@@ -5,7 +5,7 @@ set -e
 # Usage: curl -sSL https://your-server/install-server.sh | sh
 
 INSTALL_DIR="/usr/local/bin"
-REPO="machinemon/machinemon"
+REPO="klinquist/machinemon"
 BINARY="machinemon-server"
 
 # Detect OS and architecture

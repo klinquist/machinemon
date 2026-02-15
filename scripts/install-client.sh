@@ -10,7 +10,7 @@ set -e
 
 INSTALL_DIR="/usr/local/bin"
 SERVICE_USER="machinemon"
-REPO="machinemon/machinemon"
+REPO="klinquist/machinemon"
 BINARY="machinemon-client"
 
 # Detect OS and architecture
