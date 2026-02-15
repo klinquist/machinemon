@@ -29,6 +29,7 @@ type Store interface {
 
 	// Process tracking
 	UpsertWatchedProcesses(clientID string, procs []models.ProcessPayload) error
+	DeleteWatchedProcess(clientID, friendlyName string) error
 	InsertProcessSnapshots(clientID string, procs []models.ProcessPayload) error
 	GetLatestProcessSnapshots(clientID string) ([]models.ProcessSnapshot, error)
 	GetPreviousProcessSnapshots(clientID string) ([]models.ProcessSnapshot, error)

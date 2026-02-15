@@ -399,6 +399,22 @@ func (s *SQLiteStore) UpsertWatchedProcesses(clientID string, procs []models.Pro
 	return tx.Commit()
 }
 
+func (s *SQLiteStore) DeleteWatchedProcess(clientID, friendlyName string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM watched_processes WHERE client_id = ? AND friendly_name = ?`, clientID, friendlyName); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM process_snapshots WHERE client_id = ? AND friendly_name = ?`, clientID, friendlyName); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *SQLiteStore) InsertProcessSnapshots(clientID string, procs []models.ProcessPayload) error {
 	if len(procs) == 0 {
 		return nil

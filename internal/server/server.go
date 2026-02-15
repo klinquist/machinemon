@@ -65,6 +65,7 @@ func New(cfg *Config, st store.Store, alerts AlertNotifier, logger *slog.Logger)
 			r.Put("/clients/{id}/name", s.handleSetClientName)
 			r.Get("/clients/{id}/metrics", s.handleGetMetrics)
 			r.Get("/clients/{id}/processes", s.handleGetProcesses)
+			r.Delete("/clients/{id}/processes", s.handleDeleteProcess)
 
 			// Alerts
 			r.Get("/alerts", s.handleListAlerts)

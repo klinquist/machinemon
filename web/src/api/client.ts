@@ -104,6 +104,11 @@ export async function fetchProcesses(id: string): Promise<{ watched: ProcessSnap
   return fetchJSON(`/clients/${id}/processes`);
 }
 
+export async function deleteWatchedProcess(id: string, friendlyName: string): Promise<void> {
+  const params = new URLSearchParams({ friendly_name: friendlyName });
+  await fetchJSON(`/clients/${id}/processes?${params.toString()}`, { method: 'DELETE' });
+}
+
 // Alerts
 export async function fetchAlerts(clientId?: string, severity?: string, limit = 100, offset = 0): Promise<{ alerts: Alert[]; total: number }> {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });

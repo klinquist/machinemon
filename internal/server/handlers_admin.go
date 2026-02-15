@@ -214,3 +214,19 @@ func (s *Server) handleGetProcesses(w http.ResponseWriter, r *http.Request) {
 		"snapshots": snapshots,
 	})
 }
+
+func (s *Server) handleDeleteProcess(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	friendlyName := strings.TrimSpace(r.URL.Query().Get("friendly_name"))
+	if friendlyName == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "friendly_name is required"})
+		return
+	}
+
+	if err := s.store.DeleteWatchedProcess(id, friendlyName); err != nil {
+		s.logger.Error("failed to delete watched process", "id", id, "friendly_name", friendlyName, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}

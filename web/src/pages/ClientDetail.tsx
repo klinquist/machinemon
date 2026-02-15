@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchClient, deleteClient, setMute, fetchMetrics, fetchAlerts, setThresholds, clearThresholds, setClientName, fetchSettings } from '../api/client';
+import { fetchClient, deleteClient, deleteWatchedProcess, setMute, fetchMetrics, fetchAlerts, setThresholds, clearThresholds, setClientName, fetchSettings } from '../api/client';
 import type { Client, Metrics, ProcessSnapshot, CheckSnapshot, Alert, Thresholds } from '../types';
 import MetricGauge from '../components/MetricGauge';
 import StatusDot from '../components/StatusDot';
@@ -139,6 +139,18 @@ export default function ClientDetail() {
     try {
       await clearThresholds(id);
       setStatus('Per-client thresholds reset to global defaults');
+      loadData();
+    } catch (err: any) {
+      setStatus(`Error: ${err.message}`);
+    }
+  };
+
+  const handleDeleteProcess = async (friendlyName: string) => {
+    if (!id) return;
+    if (!confirm(`Delete watched process "${friendlyName}" from server?`)) return;
+    try {
+      await deleteWatchedProcess(id, friendlyName);
+      setStatus(`Deleted watched process: ${friendlyName}`);
       loadData();
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
@@ -290,6 +302,7 @@ export default function ClientDetail() {
                 <th className="pb-2">PID</th>
                 <th className="pb-2">CPU</th>
                 <th className="pb-2">Memory</th>
+                <th className="pb-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -304,6 +317,15 @@ export default function ClientDetail() {
                   <td className="py-2 text-gray-500 font-mono">{p.pid || '-'}</td>
                   <td className="py-2 text-gray-500">{p.cpu_pct?.toFixed(1)}%</td>
                   <td className="py-2 text-gray-500">{p.mem_pct?.toFixed(1)}%</td>
+                  <td className="py-2 text-right">
+                    <button
+                      onClick={() => handleDeleteProcess(p.friendly_name)}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
+                      title="Delete from server"
+                    >
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
