@@ -101,14 +101,13 @@ export default function Dashboard() {
               <span className="flex items-center gap-1">
                 <Clock size={12} /> {timeAgo(client.last_seen_at)}
               </span>
-              <div className="flex items-center gap-2 overflow-hidden">
+              <div className="flex items-center gap-2">
                 {client.public_ip && (
                   <span className="font-mono text-[11px] text-gray-500">pub {client.public_ip}</span>
                 )}
                 {client.interface_ips && client.interface_ips.length > 0 && (
                   <span
-                    className="font-mono text-[11px] text-gray-400 truncate max-w-[180px]"
-                    title={client.interface_ips.join(', ')}
+                    className="font-mono text-[11px] text-gray-400 break-all whitespace-normal text-right"
                   >
                     if {client.interface_ips.join(', ')}
                   </span>

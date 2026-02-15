@@ -194,10 +194,7 @@ export default function ClientDetail() {
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono">public {client.public_ip}</span>
           )}
           {client.interface_ips && client.interface_ips.length > 0 && (
-            <span
-              className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono max-w-[360px] truncate"
-              title={client.interface_ips.join(', ')}
-            >
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono break-all whitespace-normal">
               interfaces {client.interface_ips.join(', ')}
             </span>
           )}
