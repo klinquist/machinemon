@@ -55,44 +55,51 @@ func maybeRemoveProcesses(cfg *client.Config) error {
 		return nil
 	}
 
-	options := make([]huh.Option[string], 0, len(cfg.Processes))
-	for i, p := range cfg.Processes {
-		label := fmt.Sprintf("%s (%s)", p.FriendlyName, truncate(p.MatchPattern, 50))
-		options = append(options, huh.NewOption(label, strconv.Itoa(i)))
-	}
-
-	var selected []string
-	removeForm := huh.NewForm(
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title("Select processes to stop monitoring").
-				Description("Use space to select, enter to confirm").
-				Options(options...).
-				Value(&selected),
-		),
-	)
-	if err := removeForm.Run(); err != nil {
-		return err
-	}
-	if len(selected) == 0 {
-		fmt.Println("  No processes selected.")
-		fmt.Println()
-		return nil
-	}
-
-	removeIdx := make(map[string]bool, len(selected))
-	for _, idx := range selected {
-		removeIdx[idx] = true
-	}
-
-	kept := make([]client.ProcessConfig, 0, len(cfg.Processes)-len(selected))
-	for i, p := range cfg.Processes {
-		if !removeIdx[strconv.Itoa(i)] {
-			kept = append(kept, p)
+	removed := 0
+	for len(cfg.Processes) > 0 {
+		options := make([]huh.Option[string], 0, len(cfg.Processes)+1)
+		for i, p := range cfg.Processes {
+			label := fmt.Sprintf("%s (%s)", p.FriendlyName, truncate(p.MatchPattern, 50))
+			options = append(options, huh.NewOption(label, strconv.Itoa(i)))
 		}
+		options = append(options, huh.NewOption("Done removing", "done"))
+
+		var choice string
+		removeForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Select one process to stop monitoring").
+					Description("You can remove more after this selection").
+					Options(options...).
+					Value(&choice),
+			),
+		)
+		if err := removeForm.Run(); err != nil {
+			return err
+		}
+		if choice == "done" {
+			break
+		}
+
+		idx, err := strconv.Atoi(choice)
+		if err != nil || idx < 0 || idx >= len(cfg.Processes) {
+			fmt.Println("  Invalid selection.")
+			fmt.Println()
+			continue
+		}
+
+		removedProc := cfg.Processes[idx]
+		cfg.Processes = append(cfg.Processes[:idx], cfg.Processes[idx+1:]...)
+		removed++
+		fmt.Printf("  Removed: %s\n\n", removedProc.FriendlyName)
 	}
-	cfg.Processes = kept
-	fmt.Printf("  Removed %d process(es).\n\n", len(selected))
+
+	if removed > 0 {
+		fmt.Printf("  Removed %d process(es).\n\n", removed)
+	} else {
+		fmt.Println("  No processes removed.")
+		fmt.Println()
+	}
 	return nil
 }
 
@@ -107,74 +114,58 @@ func maybeAddProcesses(cfg *client.Config) error {
 		return nil
 	}
 
-	existingPatterns := make(map[string]bool, len(cfg.Processes))
-	for _, p := range cfg.Processes {
-		key := normalizeMatchType(p.MatchType) + "|" + p.MatchPattern
-		existingPatterns[key] = true
-	}
-
-	type indexedCandidate struct {
-		candidate client.ProcessCandidate
-	}
-	var filtered []indexedCandidate
-	for _, c := range candidates {
-		matchPattern := client.SuggestMatchPattern(c)
-		key := "substring|" + matchPattern
-		if existingPatterns[key] {
-			continue
-		}
-		filtered = append(filtered, indexedCandidate{candidate: c})
-	}
-
-	if len(filtered) == 0 {
-		fmt.Println("  No additional processes to add.")
-		return nil
-	}
-
-	options := make([]huh.Option[string], 0, len(filtered))
-	for i, entry := range filtered {
-		display := entry.candidate.Cmdline
-		if len(display) > 80 {
-			display = display[:77] + "..."
-		}
-		label := fmt.Sprintf("[%d] %s", entry.candidate.PID, display)
-		options = append(options, huh.NewOption(label, strconv.Itoa(i)))
-	}
-
-	var selected []string
-	selectForm := huh.NewForm(
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title("Select running processes to add").
-				Description("Use space to select, enter to confirm").
-				Options(options...).
-				Value(&selected),
-		),
-	)
-	if err := selectForm.Run(); err != nil {
-		return err
-	}
-	if len(selected) == 0 {
-		fmt.Println("  No processes selected.")
-		fmt.Println()
-		return nil
-	}
-	selectedSet := make(map[string]bool, len(selected))
-	for _, idx := range selected {
-		selectedSet[idx] = true
-	}
-
 	existingNames := make(map[string]bool, len(cfg.Processes))
 	for _, p := range cfg.Processes {
 		existingNames[strings.ToLower(strings.TrimSpace(p.FriendlyName))] = true
 	}
 
-	additions := make([]client.ProcessConfig, 0, len(selected))
-	for idx, entry := range filtered {
-		if !selectedSet[strconv.Itoa(idx)] {
+	added := 0
+	for {
+		filtered := filterAddableCandidates(cfg.Processes, candidates)
+		if len(filtered) == 0 {
+			if added == 0 {
+				fmt.Println("  No additional processes to add.")
+				fmt.Println()
+			}
+			break
+		}
+
+		options := make([]huh.Option[string], 0, len(filtered)+1)
+		for i, c := range filtered {
+			display := c.Cmdline
+			if len(display) > 80 {
+				display = display[:77] + "..."
+			}
+			label := fmt.Sprintf("[%d] %s", c.PID, display)
+			options = append(options, huh.NewOption(label, strconv.Itoa(i)))
+		}
+		options = append(options, huh.NewOption("Done adding", "done"))
+
+		var choice string
+		selectForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Select one running process to add").
+					Description("You can add more after this selection").
+					Options(options...).
+					Value(&choice),
+			),
+		)
+		if err := selectForm.Run(); err != nil {
+			return err
+		}
+		if choice == "done" {
+			break
+		}
+
+		idx, err := strconv.Atoi(choice)
+		if err != nil || idx < 0 || idx >= len(filtered) {
+			fmt.Println("  Invalid selection.")
+			fmt.Println()
 			continue
 		}
-		c := entry.candidate
+
+		c := filtered[idx]
 		suggestedName := client.SuggestFriendlyName(c)
 		matchPattern := client.SuggestMatchPattern(c)
 
@@ -196,16 +187,43 @@ func maybeAddProcesses(cfg *client.Config) error {
 		}
 		friendlyName = uniqueFriendlyName(friendlyName, existingNames)
 
-		additions = append(additions, client.ProcessConfig{
+		cfg.Processes = append(cfg.Processes, client.ProcessConfig{
 			FriendlyName: friendlyName,
 			MatchPattern: matchPattern,
 			MatchType:    "substring",
 		})
+		added++
+		fmt.Printf("  Added: %s (%s)\n\n", friendlyName, matchPattern)
 	}
 
-	cfg.Processes = append(cfg.Processes, additions...)
-	fmt.Printf("  Added %d process(es).\n\n", len(additions))
+	if added > 0 {
+		fmt.Printf("  Added %d process(es).\n\n", added)
+	} else {
+		fmt.Println("  No processes added.")
+		fmt.Println()
+	}
 	return nil
+}
+
+func filterAddableCandidates(configured []client.ProcessConfig, candidates []client.ProcessCandidate) []client.ProcessCandidate {
+	existingPatterns := make(map[string]bool, len(configured))
+	for _, p := range configured {
+		key := normalizeMatchType(p.MatchType) + "|" + p.MatchPattern
+		existingPatterns[key] = true
+	}
+
+	seenPatterns := make(map[string]bool)
+	filtered := make([]client.ProcessCandidate, 0, len(candidates))
+	for _, c := range candidates {
+		matchPattern := client.SuggestMatchPattern(c)
+		key := "substring|" + matchPattern
+		if existingPatterns[key] || seenPatterns[key] {
+			continue
+		}
+		seenPatterns[key] = true
+		filtered = append(filtered, c)
+	}
+	return filtered
 }
 
 func printMonitoredProcessTable(processes []client.ProcessConfig) {
