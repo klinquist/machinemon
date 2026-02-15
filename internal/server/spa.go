@@ -28,25 +28,25 @@ func (s *Server) serveSPA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to serve the requested file
 	path := r.URL.Path
+
+	// Root or unknown paths → serve index.html (with base path injection)
 	if path == "/" {
-		path = "index.html"
-	} else {
-		path = path[1:] // strip leading slash
+		s.serveIndex(w, r)
+		return
 	}
 
-	// Check if file exists in embedded FS
-	f, err := webFS.Open(path)
+	// Try to serve the requested file (CSS, JS, images, etc.)
+	filePath := path[1:] // strip leading slash
+	f, err := webFS.Open(filePath)
 	if err != nil {
-		// File not found - serve index.html for SPA client-side routing
+		// File not found → SPA client-side routing fallback
 		s.serveIndex(w, r)
 		return
 	}
 	f.Close()
 
-	// Serve the actual file
-	http.ServeFileFS(w, r, webFS, path)
+	http.ServeFileFS(w, r, webFS, filePath)
 }
 
 // serveIndex serves index.html, injecting <base> tag if base_path is configured.
