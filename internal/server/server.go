@@ -13,6 +13,8 @@ import (
 // AlertNotifier is implemented by the alert engine to receive check-in notifications.
 type AlertNotifier interface {
 	NotifyCheckIn(clientID string)
+	NotifyRestart(clientID, hostname string)
+	SendTestAlert(providerID int64) error
 }
 
 type Server struct {

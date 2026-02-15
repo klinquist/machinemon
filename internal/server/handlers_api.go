@@ -20,7 +20,7 @@ func (s *Server) handleCheckIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientID, wasOffline, err := s.store.UpsertClient(req)
+	clientID, wasOffline, sessionChanged, err := s.store.UpsertClient(req)
 	if err != nil {
 		s.logger.Error("failed to upsert client", "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
@@ -54,6 +54,10 @@ func (s *Server) handleCheckIn(w http.ResponseWriter, r *http.Request) {
 	// Notify alert engine
 	if s.alerts != nil {
 		s.alerts.NotifyCheckIn(clientID)
+		if sessionChanged {
+			s.logger.Info("client session changed (restart detected)", "client_id", clientID, "hostname", req.Hostname)
+			s.alerts.NotifyRestart(clientID, req.Hostname)
+		}
 	}
 
 	writeJSON(w, http.StatusOK, models.CheckInResponse{

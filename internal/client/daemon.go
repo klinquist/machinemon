@@ -6,9 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func RunDaemon(cfg *Config, configPath string, logger *slog.Logger) {
+	sessionID := uuid.New().String()
 	reporter := NewReporter(cfg.ServerURL, cfg.Password, cfg.InsecureSkipTLS)
 	interval := time.Duration(cfg.CheckInInterval) * time.Second
 
@@ -49,7 +52,7 @@ func RunDaemon(cfg *Config, configPath string, logger *slog.Logger) {
 			"processes", len(procs),
 			"checks", len(checks))
 
-		resp, err := reporter.CheckIn(cfg.ClientID, metrics, procs, checks)
+		resp, err := reporter.CheckIn(cfg.ClientID, sessionID, metrics, procs, checks)
 		if err != nil {
 			logger.Error("check-in failed", "err", err)
 			return
@@ -80,6 +83,7 @@ func RunDaemon(cfg *Config, configPath string, logger *slog.Logger) {
 	logger.Info("starting daemon",
 		"server", cfg.ServerURL,
 		"interval", interval,
+		"session_id", sessionID,
 		"processes", len(cfg.Processes),
 		"checks", len(cfg.Checks))
 

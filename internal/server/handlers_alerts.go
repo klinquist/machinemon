@@ -120,8 +120,15 @@ func (s *Server) handleTestProvider(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid provider id"})
 		return
 	}
-	_ = id
-	// TODO: Phase 4 - dispatch a test alert through the provider
+	if s.alerts == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "alert engine not initialized"})
+		return
+	}
+	if err := s.alerts.SendTestAlert(id); err != nil {
+		s.logger.Error("test alert failed", "provider_id", id, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "test alert sent"})
 }
 

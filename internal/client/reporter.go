@@ -35,7 +35,7 @@ func NewReporter(serverURL, password string, insecureSkipTLS bool) *Reporter {
 	}
 }
 
-func (r *Reporter) CheckIn(clientID string, metrics *SystemMetrics, procs []ProcessStatus, checks []CheckResult) (*models.CheckInResponse, error) {
+func (r *Reporter) CheckIn(clientID, sessionID string, metrics *SystemMetrics, procs []ProcessStatus, checks []CheckResult) (*models.CheckInResponse, error) {
 	hostname, _ := os.Hostname()
 
 	processes := make([]models.ProcessPayload, len(procs))
@@ -57,6 +57,7 @@ func (r *Reporter) CheckIn(clientID string, metrics *SystemMetrics, procs []Proc
 		Arch:          runtime.GOARCH,
 		ClientVersion: version.Version,
 		ClientID:      clientID,
+		SessionID:     sessionID,
 		Metrics: models.MetricsPayload{
 			CPUPercent:     metrics.CPUPercent,
 			MemPercent:     metrics.MemPercent,

@@ -9,6 +9,7 @@ type CheckInRequest struct {
 	Arch          string           `json:"arch"`
 	ClientVersion string           `json:"client_version"`
 	ClientID      string           `json:"client_id,omitempty"`
+	SessionID     string           `json:"session_id,omitempty"`
 	Metrics       MetricsPayload   `json:"metrics"`
 	Processes     []ProcessPayload `json:"processes"`
 	Checks        []CheckPayload   `json:"checks,omitempty"`
@@ -174,7 +175,8 @@ const (
 	AlertTypePIDChange      = "pid_change"
 	AlertTypeProcessDied    = "process_died"
 	AlertTypeCheckFailed    = "check_failed"
-	AlertTypeCheckRecovered = "check_recovered"
+	AlertTypeCheckRecovered  = "check_recovered"
+	AlertTypeClientRestarted = "client_restarted"
 	AlertTypeCPUWarn        = "cpu_warn"
 	AlertTypeCPUCrit        = "cpu_crit"
 	AlertTypeCPURecover     = "cpu_recover"

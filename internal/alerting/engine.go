@@ -36,6 +36,17 @@ func (e *Engine) NotifyCheckIn(clientID string) {
 	}
 }
 
+// SendTestAlert dispatches a test alert through a specific provider.
+func (e *Engine) SendTestAlert(providerID int64) error {
+	return e.dispatcher.SendTestAlert(providerID)
+}
+
+// NotifyRestart fires an alert that a client process restarted (session_id changed).
+func (e *Engine) NotifyRestart(clientID, hostname string) {
+	e.fireAlert(clientID, models.AlertTypeClientRestarted, models.SeverityWarning,
+		fmt.Sprintf("Client '%s' has restarted (new session detected)", hostname))
+}
+
 // Run starts the alert engine background loop.
 func (e *Engine) Run(ctx context.Context) {
 	offlineTicker := time.NewTicker(30 * time.Second)

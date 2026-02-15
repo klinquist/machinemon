@@ -4,6 +4,7 @@ import "database/sql"
 
 var migrations = []func(tx *sql.Tx) error{
 	migrateV1,
+	migrateV2,
 }
 
 func migrateV1(tx *sql.Tx) error {
@@ -105,4 +106,9 @@ func migrateV1(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+func migrateV2(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE clients ADD COLUMN session_id TEXT`)
+	return err
 }

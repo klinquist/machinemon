@@ -64,37 +64,39 @@ func (s *SQLiteStore) migrate() error {
 
 // --- Client operations ---
 
-func (s *SQLiteStore) UpsertClient(req models.CheckInRequest) (string, bool, error) {
+func (s *SQLiteStore) UpsertClient(req models.CheckInRequest) (string, bool, bool, error) {
 	now := time.Now().UTC()
 
 	// If client has an ID, try to update it
 	if req.ClientID != "" {
 		var isOnline bool
 		var isDeleted bool
-		err := s.db.QueryRow("SELECT is_online, is_deleted FROM clients WHERE id = ?", req.ClientID).Scan(&isOnline, &isDeleted)
+		var oldSessionID sql.NullString
+		err := s.db.QueryRow("SELECT is_online, is_deleted, session_id FROM clients WHERE id = ?", req.ClientID).Scan(&isOnline, &isDeleted, &oldSessionID)
 		if err == nil {
 			// Client exists - update it
 			wasOffline := !isOnline
+			sessionChanged := req.SessionID != "" && oldSessionID.Valid && oldSessionID.String != "" && oldSessionID.String != req.SessionID
 			_, err := s.db.Exec(`UPDATE clients SET hostname = ?, os = ?, arch = ?, client_version = ?,
-				last_seen_at = ?, is_online = 1, is_deleted = 0 WHERE id = ?`,
-				req.Hostname, req.OS, req.Arch, req.ClientVersion, now, req.ClientID)
+				last_seen_at = ?, is_online = 1, is_deleted = 0, session_id = ? WHERE id = ?`,
+				req.Hostname, req.OS, req.Arch, req.ClientVersion, now, req.SessionID, req.ClientID)
 			if err != nil {
-				return "", false, fmt.Errorf("update client: %w", err)
+				return "", false, false, fmt.Errorf("update client: %w", err)
 			}
-			return req.ClientID, wasOffline, nil
+			return req.ClientID, wasOffline, sessionChanged, nil
 		}
 		// If not found, fall through to create
 	}
 
 	// Create new client
 	id := uuid.New().String()
-	_, err := s.db.Exec(`INSERT INTO clients (id, hostname, os, arch, client_version, first_seen_at, last_seen_at, is_online)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-		id, req.Hostname, req.OS, req.Arch, req.ClientVersion, now, now)
+	_, err := s.db.Exec(`INSERT INTO clients (id, hostname, os, arch, client_version, first_seen_at, last_seen_at, is_online, session_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+		id, req.Hostname, req.OS, req.Arch, req.ClientVersion, now, now, req.SessionID)
 	if err != nil {
-		return "", false, fmt.Errorf("insert client: %w", err)
+		return "", false, false, fmt.Errorf("insert client: %w", err)
 	}
-	return id, false, nil
+	return id, false, false, nil
 }
 
 func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
