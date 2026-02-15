@@ -47,16 +47,34 @@ download_binary() {
     fi
 
     echo "Downloading ${DOWNLOAD_NAME}..."
+    echo "  URL: ${URL}"
 
     TMP_DIR=$(mktemp -d)
     trap "rm -rf $TMP_DIR" EXIT
 
+    HTTP_CODE=""
     if command -v curl >/dev/null 2>&1; then
-        curl -sSL "$URL" -o "$TMP_DIR/archive.tar.gz"
+        HTTP_CODE=$(curl -sSL -w '%{http_code}' "$URL" -o "$TMP_DIR/archive.tar.gz")
     elif command -v wget >/dev/null 2>&1; then
         wget -q "$URL" -O "$TMP_DIR/archive.tar.gz"
     else
         echo "Error: curl or wget is required"
+        exit 1
+    fi
+
+    # Verify we got a valid download
+    if [ -n "$HTTP_CODE" ] && [ "$HTTP_CODE" != "200" ]; then
+        echo "Error: download failed with HTTP status $HTTP_CODE"
+        echo "  Check that the release exists at: https://github.com/${REPO}/releases"
+        exit 1
+    fi
+
+    FILESIZE=$(wc -c < "$TMP_DIR/archive.tar.gz" | tr -d ' ')
+    if [ "$FILESIZE" -lt 1000 ]; then
+        echo "Error: downloaded file is too small (${FILESIZE} bytes) — likely not a valid binary"
+        echo "  Contents:"
+        head -c 200 "$TMP_DIR/archive.tar.gz"
+        echo ""
         exit 1
     fi
 
