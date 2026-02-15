@@ -49,12 +49,17 @@ func (s *Server) handleGetClient(w http.ResponseWriter, r *http.Request) {
 	if checks == nil {
 		checks = []models.CheckSnapshot{}
 	}
+	alertMutes, _ := s.store.ListClientAlertMutes(id)
+	if alertMutes == nil {
+		alertMutes = []models.ClientAlertMute{}
+	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"client":    client,
-		"metrics":   metrics,
-		"processes": procs,
-		"checks":    checks,
+		"client":      client,
+		"metrics":     metrics,
+		"processes":   procs,
+		"checks":      checks,
+		"alert_mutes": alertMutes,
 	})
 }
 
@@ -128,6 +133,12 @@ type muteRequest struct {
 	Reason          string `json:"reason"`
 }
 
+type scopedMuteRequest struct {
+	Muted  bool   `json:"muted"`
+	Scope  string `json:"scope"`
+	Target string `json:"target"`
+}
+
 func (s *Server) handleSetMute(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -145,6 +156,37 @@ func (s *Server) handleSetMute(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.store.SetClientMute(id, req.Muted, until, req.Reason); err != nil {
 		s.logger.Error("failed to set mute", "id", id, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+func (s *Server) handleSetScopedMute(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req scopedMuteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	scope := strings.TrimSpace(req.Scope)
+	target := strings.TrimSpace(req.Target)
+	switch scope {
+	case "cpu", "memory", "disk":
+		target = ""
+	case "process", "check":
+		if target == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "target is required for process/check scope"})
+			return
+		}
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid scope"})
+		return
+	}
+
+	if err := s.store.SetClientAlertMute(id, scope, target, req.Muted); err != nil {
+		s.logger.Error("failed to set scoped mute", "id", id, "scope", scope, "target", target, "muted", req.Muted, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}

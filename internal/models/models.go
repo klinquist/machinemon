@@ -88,6 +88,16 @@ type CheckInResponse struct {
 	ServerTime         time.Time `json:"server_time"`
 }
 
+// ClientAlertMute stores per-client scoped alert mute rules.
+// Scope values: "cpu", "memory", "disk", "process", "check".
+type ClientAlertMute struct {
+	ID        int64     `json:"id,omitempty"`
+	ClientID  string    `json:"client_id,omitempty"`
+	Scope     string    `json:"scope"`
+	Target    string    `json:"target,omitempty"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+}
+
 // Client represents a monitored machine.
 type Client struct {
 	ID            string    `json:"id"`

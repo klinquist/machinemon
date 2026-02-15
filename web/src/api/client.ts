@@ -1,4 +1,4 @@
-import type { ClientWithMetrics, Client, Metrics, ProcessSnapshot, CheckSnapshot, Alert, Thresholds, AlertProvider, TestAlertResult } from '../types';
+import type { ClientWithMetrics, Client, Metrics, ProcessSnapshot, CheckSnapshot, ClientAlertMute, Alert, Thresholds, AlertProvider, TestAlertResult } from '../types';
 
 function normalizeBasePath(path: string): string {
   if (!path) return '';
@@ -57,7 +57,7 @@ export async function fetchClients(): Promise<ClientWithMetrics[]> {
   return data.clients;
 }
 
-export async function fetchClient(id: string): Promise<{ client: Client; metrics: Metrics | null; processes: ProcessSnapshot[]; checks?: CheckSnapshot[] }> {
+export async function fetchClient(id: string): Promise<{ client: Client; metrics: Metrics | null; processes: ProcessSnapshot[]; checks?: CheckSnapshot[]; alert_mutes?: ClientAlertMute[] }> {
   return fetchJSON(`/clients/${id}`);
 }
 
@@ -89,6 +89,13 @@ export async function setMute(id: string, muted: boolean, durationMinutes?: numb
   await fetchJSON(`/clients/${id}/mute`, {
     method: 'PUT',
     body: JSON.stringify({ muted, duration_minutes: durationMinutes || 0, reason: reason || '' }),
+  });
+}
+
+export async function setScopedMute(id: string, scope: 'cpu' | 'memory' | 'disk' | 'process' | 'check', target: string, muted: boolean): Promise<void> {
+  await fetchJSON(`/clients/${id}/mutes`, {
+    method: 'PUT',
+    body: JSON.stringify({ scope, target, muted }),
   });
 }
 

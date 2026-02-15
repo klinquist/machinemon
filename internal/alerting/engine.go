@@ -19,6 +19,12 @@ type Engine struct {
 	checkInCh  chan string
 }
 
+type scopedMuteState struct {
+	metrics   map[string]bool
+	processes map[string]bool
+	checks    map[string]bool
+}
+
 func NewEngine(st store.Store, logger *slog.Logger) *Engine {
 	return &Engine{
 		store:      st,
@@ -117,6 +123,8 @@ func (e *Engine) evaluateCheckIn(clientID string) {
 		e.store.SetClientMute(clientID, false, nil, "")
 	}
 
+	scopedMutes := e.loadScopedMutes(clientID)
+
 	// 1. Was this client previously offline? Fire "online" alert
 	// The UpsertClient already set is_online=true and returned wasOffline.
 	// We check by looking for a recent offline alert without a corresponding online alert.
@@ -134,15 +142,21 @@ func (e *Engine) evaluateCheckIn(clientID string) {
 	}
 
 	thresholds := e.resolveThresholds(client)
-	e.checkThreshold(clientID, hostLabel, "cpu", latest.CPUPercent, thresholds.CPUWarnPct, thresholds.CPUCritPct)
-	e.checkThreshold(clientID, hostLabel, "mem", latest.MemPercent, thresholds.MemWarnPct, thresholds.MemCritPct)
-	e.checkThreshold(clientID, hostLabel, "disk", latest.DiskPercent, thresholds.DiskWarnPct, thresholds.DiskCritPct)
+	if !scopedMutes.metrics["cpu"] {
+		e.checkThreshold(clientID, hostLabel, "cpu", latest.CPUPercent, thresholds.CPUWarnPct, thresholds.CPUCritPct)
+	}
+	if !scopedMutes.metrics["mem"] {
+		e.checkThreshold(clientID, hostLabel, "mem", latest.MemPercent, thresholds.MemWarnPct, thresholds.MemCritPct)
+	}
+	if !scopedMutes.metrics["disk"] {
+		e.checkThreshold(clientID, hostLabel, "disk", latest.DiskPercent, thresholds.DiskWarnPct, thresholds.DiskCritPct)
+	}
 
 	// 3. Process checks
-	e.checkProcesses(clientID, hostLabel)
+	e.checkProcesses(clientID, hostLabel, scopedMutes)
 
 	// 4. Check results (script, http, file_touch, ...)
-	e.checkChecks(clientID, hostLabel)
+	e.checkChecks(clientID, hostLabel, scopedMutes)
 }
 
 func (e *Engine) resolveThresholds(client *models.Client) models.Thresholds {
@@ -219,7 +233,7 @@ func (e *Engine) checkThreshold(clientID, hostname, metric string, value, warnPc
 	}
 }
 
-func (e *Engine) checkProcesses(clientID, hostname string) {
+func (e *Engine) checkProcesses(clientID, hostname string, mutes scopedMuteState) {
 	current, err := e.store.GetLatestProcessSnapshots(clientID)
 	if err != nil || len(current) == 0 {
 		return
@@ -235,6 +249,9 @@ func (e *Engine) checkProcesses(clientID, hostname string) {
 	}
 
 	for _, curr := range current {
+		if mutes.processes[curr.FriendlyName] {
+			continue
+		}
 		prev, exists := prevMap[curr.FriendlyName]
 		if !exists {
 			continue
@@ -251,7 +268,7 @@ func (e *Engine) checkProcesses(clientID, hostname string) {
 	}
 }
 
-func (e *Engine) checkChecks(clientID, hostname string) {
+func (e *Engine) checkChecks(clientID, hostname string, mutes scopedMuteState) {
 	current, err := e.store.GetLatestCheckSnapshots(clientID)
 	if err != nil || len(current) == 0 {
 		return
@@ -267,6 +284,9 @@ func (e *Engine) checkChecks(clientID, hostname string) {
 	}
 
 	for _, curr := range current {
+		if mutes.checks[checkMuteTarget(curr.FriendlyName, curr.CheckType)] {
+			continue
+		}
 		prev, exists := prevMap[curr.FriendlyName]
 
 		if !curr.Healthy {
@@ -286,6 +306,42 @@ func (e *Engine) checkChecks(clientID, hostname string) {
 					curr.FriendlyName, curr.CheckType, hostname))
 		}
 	}
+}
+
+func (e *Engine) loadScopedMutes(clientID string) scopedMuteState {
+	out := scopedMuteState{
+		metrics:   map[string]bool{},
+		processes: map[string]bool{},
+		checks:    map[string]bool{},
+	}
+	mutes, err := e.store.ListClientAlertMutes(clientID)
+	if err != nil {
+		e.logger.Error("failed to load scoped mutes", "client_id", clientID, "err", err)
+		return out
+	}
+	for _, m := range mutes {
+		switch m.Scope {
+		case "cpu":
+			out.metrics["cpu"] = true
+		case "memory":
+			out.metrics["mem"] = true
+		case "disk":
+			out.metrics["disk"] = true
+		case "process":
+			if m.Target != "" {
+				out.processes[m.Target] = true
+			}
+		case "check":
+			if m.Target != "" {
+				out.checks[m.Target] = true
+			}
+		}
+	}
+	return out
+}
+
+func checkMuteTarget(friendlyName, checkType string) string {
+	return strings.TrimSpace(friendlyName) + "::" + strings.TrimSpace(checkType)
 }
 
 func (e *Engine) fireAlert(clientID, alertType, severity, message string) {

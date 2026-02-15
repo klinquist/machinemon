@@ -7,6 +7,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV2,
 	migrateV3,
 	migrateV4,
+	migrateV5,
 }
 
 func migrateV1(tx *sql.Tx) error {
@@ -126,4 +127,25 @@ func migrateV4(tx *sql.Tx) error {
 	}
 	_, err := tx.Exec(`ALTER TABLE clients ADD COLUMN interface_ips TEXT NOT NULL DEFAULT '[]'`)
 	return err
+}
+
+func migrateV5(tx *sql.Tx) error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS client_alert_mutes (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			client_id   TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			scope       TEXT NOT NULL,
+			target      TEXT NOT NULL DEFAULT '',
+			created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(client_id, scope, target)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_alert_mutes_client ON client_alert_mutes(client_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_alert_mutes_scope ON client_alert_mutes(client_id, scope)`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }

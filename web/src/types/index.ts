@@ -69,6 +69,11 @@ export interface CheckSnapshot {
   recorded_at: string;
 }
 
+export interface ClientAlertMute {
+  scope: 'cpu' | 'memory' | 'disk' | 'process' | 'check';
+  target: string;
+}
+
 export interface Alert {
   id: number;
   client_id: string;

@@ -21,6 +21,8 @@ type Store interface {
 	SetClientCustomName(id, customName string) error
 	SetClientThresholds(id string, t *models.Thresholds) error
 	SetClientMute(id string, muted bool, until *time.Time, reason string) error
+	ListClientAlertMutes(clientID string) ([]models.ClientAlertMute, error)
+	SetClientAlertMute(clientID, scope, target string, muted bool) error
 
 	// Metrics
 	InsertMetrics(clientID string, m models.MetricsPayload) error

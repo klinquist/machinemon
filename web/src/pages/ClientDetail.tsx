@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchClient, deleteClient, deleteWatchedProcess, deleteCheckSnapshot, setMute, fetchMetrics, fetchAlerts, setThresholds, clearThresholds, setClientName, fetchSettings } from '../api/client';
-import type { Client, Metrics, ProcessSnapshot, CheckSnapshot, Alert, Thresholds } from '../types';
+import { fetchClient, deleteClient, deleteWatchedProcess, deleteCheckSnapshot, setMute, setScopedMute, fetchMetrics, fetchAlerts, setThresholds, clearThresholds, setClientName, fetchSettings } from '../api/client';
+import type { Client, Metrics, ProcessSnapshot, CheckSnapshot, ClientAlertMute, Alert, Thresholds } from '../types';
 import MetricGauge from '../components/MetricGauge';
 import StatusDot from '../components/StatusDot';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -37,6 +37,7 @@ export default function ClientDetail() {
   const [checks, setChecks] = useState<CheckSnapshot[]>([]);
   const [history, setHistory] = useState<Metrics[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alertMutes, setAlertMutes] = useState<ClientAlertMute[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
@@ -65,6 +66,7 @@ export default function ClientDetail() {
       setMetrics(data.metrics);
       setProcesses(data.processes || []);
       setChecks(data.checks || []);
+      setAlertMutes(data.alert_mutes || []);
       setNameInput(data.client.custom_name || '');
 
       const defaults: Thresholds = {
@@ -115,6 +117,24 @@ export default function ClientDetail() {
     if (!id || !client) return;
     await setMute(id, !client.alerts_muted, 0, '');
     loadData();
+  };
+
+  const checkMuteTarget = (friendlyName: string, checkType: string): string => `${friendlyName.trim()}::${checkType.trim()}`;
+
+  const isScopedMuted = (scope: ClientAlertMute['scope'], target = ''): boolean =>
+    alertMutes.some(m => m.scope === scope && (m.target || '') === target);
+
+  const handleToggleScopedMute = async (scope: ClientAlertMute['scope'], target = '') => {
+    if (!id) return;
+    const muted = !isScopedMuted(scope, target);
+    try {
+      await setScopedMute(id, scope, target, muted);
+      const label = scope === 'process' || scope === 'check' ? `${scope} '${target}'` : scope;
+      setStatus(`${muted ? 'Muted' : 'Unmuted'} ${label} alerts`);
+      await loadData();
+    } catch (err: any) {
+      setStatus(`Error: ${err.message}`);
+    }
   };
 
   const handleRename = async () => {
@@ -257,6 +277,31 @@ export default function ClientDetail() {
         </div>
       )}
 
+      <div className="bg-white rounded-lg border p-4 mb-6">
+        <h2 className="font-semibold text-gray-700 mb-3">Scoped Alert Mutes</h2>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { scope: 'cpu' as const, label: 'CPU' },
+            { scope: 'memory' as const, label: 'Memory' },
+            { scope: 'disk' as const, label: 'Disk' },
+          ].map(item => {
+            const muted = isScopedMuted(item.scope);
+            return (
+              <button
+                key={item.scope}
+                onClick={() => handleToggleScopedMute(item.scope)}
+                className={`px-3 py-1.5 rounded text-sm border ${muted ? 'bg-gray-100 text-gray-700 border-gray-300' : 'hover:bg-gray-50 text-gray-600 border-gray-200'}`}
+              >
+                {muted ? `Unmute ${item.label}` : `Mute ${item.label}`}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-gray-400 mt-2">
+          Per-process and per-check mute controls are available in each row below.
+        </p>
+      </div>
+
       {/* Watched Processes + Checks (second section) */}
       {(processes.length > 0 || checks.length > 0) && (
         <div className="bg-white rounded-lg border p-4 mb-6">
@@ -289,6 +334,13 @@ export default function ClientDetail() {
                     <td className="py-2 text-gray-500">{p.mem_pct?.toFixed(1)}%</td>
                     <td className="py-2 text-right">
                       <button
+                        onClick={() => handleToggleScopedMute('process', p.friendly_name)}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 rounded mr-1"
+                        title={isScopedMuted('process', p.friendly_name) ? 'Unmute alerts' : 'Mute alerts'}
+                      >
+                        {isScopedMuted('process', p.friendly_name) ? <Volume2 size={12} /> : <VolumeX size={12} />} {isScopedMuted('process', p.friendly_name) ? 'Unmute' : 'Mute'}
+                      </button>
+                      <button
                         onClick={() => handleDeleteProcess(p.friendly_name)}
                         className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
                         title="Delete from server"
@@ -311,6 +363,13 @@ export default function ClientDetail() {
                     <td className="py-2 text-gray-400">-</td>
                     <td className="py-2 text-gray-400">-</td>
                     <td className="py-2 text-right">
+                      <button
+                        onClick={() => handleToggleScopedMute('check', checkMuteTarget(c.friendly_name, c.check_type))}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 rounded mr-1"
+                        title={isScopedMuted('check', checkMuteTarget(c.friendly_name, c.check_type)) ? 'Unmute alerts' : 'Mute alerts'}
+                      >
+                        {isScopedMuted('check', checkMuteTarget(c.friendly_name, c.check_type)) ? <Volume2 size={12} /> : <VolumeX size={12} />} {isScopedMuted('check', checkMuteTarget(c.friendly_name, c.check_type)) ? 'Unmute' : 'Mute'}
+                      </button>
                       <button
                         onClick={() => handleDeleteCheck(c.friendly_name, c.check_type)}
                         className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"

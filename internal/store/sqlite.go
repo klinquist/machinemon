@@ -337,6 +337,41 @@ func (s *SQLiteStore) SetClientMute(id string, muted bool, until *time.Time, rea
 	return err
 }
 
+func (s *SQLiteStore) ListClientAlertMutes(clientID string) ([]models.ClientAlertMute, error) {
+	rows, err := s.db.Query(`SELECT id, client_id, scope, target, created_at
+		FROM client_alert_mutes
+		WHERE client_id = ?
+		ORDER BY scope, target`, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []models.ClientAlertMute
+	for rows.Next() {
+		var m models.ClientAlertMute
+		if err := rows.Scan(&m.ID, &m.ClientID, &m.Scope, &m.Target, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (s *SQLiteStore) SetClientAlertMute(clientID, scope, target string, muted bool) error {
+	scope = strings.TrimSpace(scope)
+	target = strings.TrimSpace(target)
+	if muted {
+		_, err := s.db.Exec(`INSERT INTO client_alert_mutes (client_id, scope, target)
+			VALUES (?, ?, ?)
+			ON CONFLICT(client_id, scope, target) DO NOTHING`, clientID, scope, target)
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM client_alert_mutes WHERE client_id = ? AND scope = ? AND target = ?`,
+		clientID, scope, target)
+	return err
+}
+
 // --- Metrics ---
 
 func (s *SQLiteStore) InsertMetrics(clientID string, m models.MetricsPayload) error {
