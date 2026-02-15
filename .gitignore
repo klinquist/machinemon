@@ -1,0 +1,9 @@
+dist/
+binaries/
+web/dist/
+web/node_modules/
+cmd/machinemon-server/web_dist/
+*.db
+*.db-wal
+*.db-shm
+.env

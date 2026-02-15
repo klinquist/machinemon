@@ -1,0 +1,17 @@
+[Unit]
+Description=MachineMon Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/machinemon-server
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+# Allow binding to ports < 1024 (for HTTPS on 443)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
