@@ -157,6 +157,26 @@ make test             # Run tests
 make clean            # Remove all build artifacts
 ```
 
+### One-Command Release Publish
+
+Use the helper script to run tests, build web/client/server, package archives, and upload assets to a GitHub release:
+
+```bash
+# Build + upload to v0.1.0
+./scripts/release-github.sh
+
+# Build + upload to a specific tag
+./scripts/release-github.sh --tag v0.1.1
+
+# Build/package only (no upload)
+./scripts/release-github.sh --no-upload
+```
+
+Notes:
+- Add `--push` to push your current branch before building.
+- Add `--skip-web` to reuse existing embedded web assets (`cmd/machinemon-server/web_dist`).
+- Add `--allow-dirty` only if you intentionally want to release with uncommitted changes.
+
 ### Client Platforms
 
 | OS | Architecture | Binary |
