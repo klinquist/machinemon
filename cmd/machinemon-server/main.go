@@ -180,6 +180,7 @@ func runSetup(cfg *server.Config, configPath string) error {
 			return fmt.Errorf("domain is required for autocert")
 		}
 		cfg.ListenAddr = ":443"
+		cfg.ExternalURL = "https://" + cfg.Domain
 	case "3", "selfsigned":
 		cfg.TLSMode = "selfsigned"
 		fmt.Print("Listen address [0.0.0.0:8443]: ")
@@ -199,6 +200,15 @@ func runSetup(cfg *server.Config, configPath string) error {
 			cfg.ListenAddr = addr
 		} else {
 			cfg.ListenAddr = "0.0.0.0:8080"
+		}
+		fmt.Println()
+		fmt.Println("Since you're running behind a reverse proxy, what is the public URL")
+		fmt.Println("that clients and browsers will use to reach this server?")
+		fmt.Print("External URL (e.g. https://monitor.example.com): ")
+		var extURL string
+		fmt.Scanln(&extURL)
+		if extURL != "" {
+			cfg.ExternalURL = extURL
 		}
 	}
 

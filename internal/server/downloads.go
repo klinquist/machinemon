@@ -85,8 +85,13 @@ func (s *Server) handleListDownloads(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// getBaseURL determines the server's public URL from the request, respecting reverse proxy headers.
+// getBaseURL determines the server's public URL.
+// Uses ExternalURL from config if set, otherwise infers from request headers.
 func (s *Server) getBaseURL(r *http.Request) string {
+	if s.cfg.ExternalURL != "" {
+		return strings.TrimRight(s.cfg.ExternalURL, "/")
+	}
+
 	scheme := "http"
 	if s.cfg.TLSMode != "" && s.cfg.TLSMode != "none" {
 		scheme = "https"

@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	ListenAddr   string `toml:"listen_addr"`
+	ExternalURL  string `toml:"external_url"` // public URL (e.g. https://monitor.example.com) — used for install scripts, dashboard links
 	DatabasePath string `toml:"database_path"`
 	BinariesDir  string `toml:"binaries_dir"` // directory containing client .tar.gz binaries
 
