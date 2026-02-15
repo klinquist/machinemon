@@ -9,63 +9,48 @@ import (
 )
 
 func runProcessPicker(cfg *client.Config) error {
-	if len(cfg.Processes) > 0 {
-		fmt.Println("  Currently monitored processes:")
-		for _, p := range cfg.Processes {
-			fmt.Printf("    - %s (%s)\n", p.FriendlyName, p.MatchPattern)
+	for {
+		printMonitoredProcessTable(cfg.Processes)
+
+		options := []huh.Option[string]{
+			huh.NewOption("Add process to monitor", "add"),
 		}
-		fmt.Println()
-	}
+		if len(cfg.Processes) > 0 {
+			options = append(options, huh.NewOption("Stop monitoring existing process(es)", "remove"))
+		}
+		options = append(options, huh.NewOption("Continue setup", "done"))
 
-	var manageProcesses bool
-	title := "Would you like to monitor specific processes?"
-	description := "You can select from currently running processes."
-	if len(cfg.Processes) > 0 {
-		title = "Would you like to update monitored processes?"
-		description = "You can remove existing ones and/or add new running processes."
-	}
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(title).
-				Description(description).
-				Value(&manageProcesses),
-		),
-	)
-	if err := form.Run(); err != nil {
-		return err
-	}
-	if !manageProcesses {
-		return nil
-	}
+		var action string
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Process monitoring").
+					Description("Choose an action").
+					Options(options...).
+					Value(&action),
+			),
+		)
+		if err := form.Run(); err != nil {
+			return err
+		}
 
-	if err := maybeRemoveProcesses(cfg); err != nil {
-		return err
+		switch action {
+		case "add":
+			if err := maybeAddProcesses(cfg); err != nil {
+				return err
+			}
+		case "remove":
+			if err := maybeRemoveProcesses(cfg); err != nil {
+				return err
+			}
+		default:
+			return nil
+		}
 	}
-	if err := maybeAddProcesses(cfg); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func maybeRemoveProcesses(cfg *client.Config) error {
 	if len(cfg.Processes) == 0 {
-		return nil
-	}
-
-	var removeAny bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("Stop monitoring any existing processes?").
-				Value(&removeAny),
-		),
-	)
-	if err := form.Run(); err != nil {
-		return err
-	}
-	if !removeAny {
 		return nil
 	}
 
@@ -104,25 +89,11 @@ func maybeRemoveProcesses(cfg *client.Config) error {
 		}
 	}
 	cfg.Processes = kept
+	fmt.Printf("  Removed %d process(es).\n\n", len(selected))
 	return nil
 }
 
 func maybeAddProcesses(cfg *client.Config) error {
-	var addAny bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("Add new running processes to monitor?").
-				Value(&addAny),
-		),
-	)
-	if err := form.Run(); err != nil {
-		return err
-	}
-	if !addAny {
-		return nil
-	}
-
 	fmt.Println("  Scanning running processes...")
 	candidates, err := client.ListProcessCandidates()
 	if err != nil {
@@ -135,7 +106,7 @@ func maybeAddProcesses(cfg *client.Config) error {
 
 	existingPatterns := make(map[string]bool, len(cfg.Processes))
 	for _, p := range cfg.Processes {
-		key := p.MatchType + "|" + p.MatchPattern
+		key := normalizeMatchType(p.MatchType) + "|" + p.MatchPattern
 		existingPatterns[key] = true
 	}
 
@@ -166,6 +137,7 @@ func maybeAddProcesses(cfg *client.Config) error {
 		label := fmt.Sprintf("[%d] %s", entry.candidate.PID, display)
 		options = append(options, huh.NewOption(label, i))
 	}
+
 	var selected []int
 	selectForm := huh.NewForm(
 		huh.NewGroup(
@@ -179,7 +151,6 @@ func maybeAddProcesses(cfg *client.Config) error {
 	if err := selectForm.Run(); err != nil {
 		return err
 	}
-
 	if len(selected) == 0 {
 		return nil
 	}
@@ -196,7 +167,6 @@ func maybeAddProcesses(cfg *client.Config) error {
 		matchPattern := client.SuggestMatchPattern(c)
 
 		friendlyName := suggestedName
-
 		nameForm := huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().
@@ -222,7 +192,54 @@ func maybeAddProcesses(cfg *client.Config) error {
 	}
 
 	cfg.Processes = append(cfg.Processes, additions...)
+	fmt.Printf("  Added %d process(es).\n\n", len(additions))
 	return nil
+}
+
+func printMonitoredProcessTable(processes []client.ProcessConfig) {
+	const (
+		nameWidth    = 24
+		typeWidth    = 10
+		patternWidth = 34
+	)
+
+	fmt.Println("  Currently monitored processes:")
+	border := fmt.Sprintf("  +----+-%s-+-%s-+-%s-+",
+		strings.Repeat("-", nameWidth),
+		strings.Repeat("-", typeWidth),
+		strings.Repeat("-", patternWidth),
+	)
+	fmt.Println(border)
+	fmt.Printf("  | %-2s | %-*s | %-*s | %-*s |\n",
+		"#", nameWidth, "Friendly Name", typeWidth, "Type", patternWidth, "Match Pattern")
+	fmt.Println(border)
+
+	if len(processes) == 0 {
+		fmt.Printf("  | %-2s | %-*s | %-*s | %-*s |\n", "", nameWidth, "<none>", typeWidth, "", patternWidth, "")
+		fmt.Println(border)
+		fmt.Println()
+		return
+	}
+
+	for i, p := range processes {
+		matchType := normalizeMatchType(p.MatchType)
+		fmt.Printf("  | %2d | %-*s | %-*s | %-*s |\n",
+			i+1,
+			nameWidth, truncate(p.FriendlyName, nameWidth),
+			typeWidth, truncate(matchType, typeWidth),
+			patternWidth, truncate(p.MatchPattern, patternWidth),
+		)
+	}
+	fmt.Println(border)
+	fmt.Println()
+}
+
+func normalizeMatchType(matchType string) string {
+	matchType = strings.TrimSpace(matchType)
+	if matchType == "" {
+		return "substring"
+	}
+	return matchType
 }
 
 func uniqueFriendlyName(base string, existing map[string]bool) string {
