@@ -55,22 +55,23 @@ func Detect() InitSystem {
 // Install installs a system service for the given binary.
 // name is the service name (e.g. "machinemon-server").
 // binPath is the absolute path to the binary.
-func Install(name, binPath string) error {
+// configPath is the absolute path to the config file to pass via --config flag.
+func Install(name, binPath, configPath string) error {
 	initSys := Detect()
 
 	fmt.Printf("Detected init system: %s\n", initSys)
 
 	switch initSys {
 	case Systemd:
-		return installSystemd(name, binPath)
+		return installSystemd(name, binPath, configPath)
 	case SysVInit:
-		return installSysVInit(name, binPath)
+		return installSysVInit(name, binPath, configPath)
 	case OpenRC:
-		return installOpenRC(name, binPath)
+		return installOpenRC(name, binPath, configPath)
 	case Upstart:
-		return installUpstart(name, binPath)
+		return installUpstart(name, binPath, configPath)
 	case Launchd:
-		return installLaunchd(name, binPath)
+		return installLaunchd(name, binPath, configPath)
 	default:
 		return fmt.Errorf("could not detect init system — install service manually")
 	}
@@ -96,6 +97,14 @@ func Uninstall(name string) error {
 	default:
 		return fmt.Errorf("could not detect init system — remove service manually")
 	}
+}
+
+// execLine builds the command line for service files.
+func execLine(binPath, configPath string) string {
+	if configPath != "" {
+		return fmt.Sprintf("%s --config %s", binPath, configPath)
+	}
+	return binPath
 }
 
 // runPrivileged runs a command, prepending sudo if not root.
@@ -132,7 +141,7 @@ func removePrivileged(path string) error {
 
 // --- systemd ---
 
-func installSystemd(name, binPath string) error {
+func installSystemd(name, binPath, configPath string) error {
 	unit := fmt.Sprintf(`[Unit]
 Description=MachineMon %s
 After=network-online.target
@@ -148,7 +157,7 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-`, serviceLabel(name), binPath)
+`, serviceLabel(name), execLine(binPath, configPath))
 
 	path := fmt.Sprintf("/etc/systemd/system/%s.service", name)
 	if err := writePrivileged(path, unit); err != nil {
@@ -180,7 +189,8 @@ func uninstallSystemd(name string) error {
 
 // --- SysVInit ---
 
-func installSysVInit(name, binPath string) error {
+func installSysVInit(name, binPath, configPath string) error {
+	cmd := execLine(binPath, configPath)
 	script := fmt.Sprintf(`#!/bin/sh
 ### BEGIN INIT INFO
 # Provides:          %s
@@ -191,7 +201,7 @@ func installSysVInit(name, binPath string) error {
 # Short-Description: MachineMon %s
 ### END INIT INFO
 
-DAEMON=%s
+DAEMON_CMD="%s"
 PIDFILE=/var/run/%s.pid
 LOGFILE=/var/log/%s.log
 
@@ -202,7 +212,7 @@ case "$1" in
       echo "Already running (PID $(cat "$PIDFILE"))"
       exit 0
     fi
-    nohup "$DAEMON" >> "$LOGFILE" 2>&1 &
+    nohup $DAEMON_CMD >> "$LOGFILE" 2>&1 &
     echo $! > "$PIDFILE"
     echo "Started (PID $!)"
     ;;
@@ -234,7 +244,7 @@ case "$1" in
     exit 1
     ;;
 esac
-`, name, serviceLabel(name), binPath, name, name, name, name, name, name)
+`, name, serviceLabel(name), cmd, name, name, name, name, name, name)
 
 	path := fmt.Sprintf("/etc/init.d/%s", name)
 	if err := writePrivileged(path, script); err != nil {
@@ -278,12 +288,13 @@ func uninstallSysVInit(name string) error {
 
 // --- OpenRC ---
 
-func installOpenRC(name, binPath string) error {
+func installOpenRC(name, binPath, configPath string) error {
 	script := fmt.Sprintf(`#!/sbin/openrc-run
 
 name="%s"
 description="MachineMon %s"
 command="%s"
+command_args="%s"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
 output_log="/var/log/%s.log"
@@ -293,7 +304,7 @@ depend() {
     need net
     after firewall
 }
-`, name, serviceLabel(name), binPath, name, name)
+`, name, serviceLabel(name), binPath, configFlag(configPath), name, name)
 
 	path := fmt.Sprintf("/etc/init.d/%s", name)
 	if err := writePrivileged(path, script); err != nil {
@@ -324,7 +335,7 @@ func uninstallOpenRC(name string) error {
 
 // --- Upstart ---
 
-func installUpstart(name, binPath string) error {
+func installUpstart(name, binPath, configPath string) error {
 	conf := fmt.Sprintf(`description "MachineMon %s"
 
 start on runlevel [2345]
@@ -334,7 +345,7 @@ respawn
 respawn limit 10 5
 
 exec %s >> /var/log/%s.log 2>&1
-`, serviceLabel(name), binPath, name)
+`, serviceLabel(name), execLine(binPath, configPath), name)
 
 	path := fmt.Sprintf("/etc/init/%s.conf", name)
 	if err := writePrivileged(path, conf); err != nil {
@@ -360,8 +371,14 @@ func uninstallUpstart(name string) error {
 
 // --- launchd ---
 
-func installLaunchd(name, binPath string) error {
+func installLaunchd(name, binPath, configPath string) error {
 	label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
+
+	args := fmt.Sprintf(`        <string>%s</string>`, binPath)
+	if configPath != "" {
+		args += fmt.Sprintf("\n        <string>--config</string>\n        <string>%s</string>", configPath)
+	}
+
 	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -370,7 +387,7 @@ func installLaunchd(name, binPath string) error {
     <string>%s</string>
     <key>ProgramArguments</key>
     <array>
-        <string>%s</string>
+%s
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -382,7 +399,7 @@ func installLaunchd(name, binPath string) error {
     <string>/tmp/%s.log</string>
 </dict>
 </plist>
-`, label, binPath, name, name)
+`, label, args, name, name)
 
 	home, _ := os.UserHomeDir()
 	dir := filepath.Join(home, "Library", "LaunchAgents")
@@ -422,4 +439,11 @@ func serviceLabel(name string) string {
 	default:
 		return name
 	}
+}
+
+func configFlag(configPath string) string {
+	if configPath != "" {
+		return "--config " + configPath
+	}
+	return ""
 }

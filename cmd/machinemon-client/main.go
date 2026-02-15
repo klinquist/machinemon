@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/machinemon/machinemon/internal/client"
 	"github.com/machinemon/machinemon/internal/client/wizard"
@@ -31,7 +32,8 @@ func main() {
 
 	if *serviceInstall {
 		binPath, _ := os.Executable()
-		if err := service.Install("machinemon-client", binPath); err != nil {
+		cfgAbs, _ := filepath.Abs(*configPath)
+		if err := service.Install("machinemon-client", binPath, cfgAbs); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

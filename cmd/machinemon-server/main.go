@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/machinemon/machinemon/internal/alerting"
@@ -37,7 +38,8 @@ func main() {
 
 	if *serviceInstall {
 		binPath, _ := os.Executable()
-		if err := service.Install("machinemon-server", binPath); err != nil {
+		cfgAbs, _ := filepath.Abs(*configPath)
+		if err := service.Install("machinemon-server", binPath, cfgAbs); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -219,6 +221,15 @@ func runSetup(cfg *server.Config, configPath string) error {
 	fmt.Printf("Config saved to %s\n", configPath)
 
 	if cfg.TLSMode == "none" {
+		// Extract port from listen address for nginx example
+		proxyAddr := cfg.ListenAddr
+		if strings.Contains(proxyAddr, "0.0.0.0") {
+			port := proxyAddr[strings.LastIndex(proxyAddr, ":"):]
+			proxyAddr = "127.0.0.1" + port
+		} else if strings.HasPrefix(proxyAddr, ":") {
+			proxyAddr = "127.0.0.1" + proxyAddr
+		}
+
 		fmt.Println()
 		fmt.Println("Running in HTTP mode. For HTTPS, put behind a reverse proxy.")
 		fmt.Println("Example nginx config:")
@@ -229,7 +240,7 @@ func runSetup(cfg *server.Config, configPath string) error {
 		fmt.Println("    ssl_certificate /etc/letsencrypt/live/monitor.example.com/fullchain.pem;")
 		fmt.Println("    ssl_certificate_key /etc/letsencrypt/live/monitor.example.com/privkey.pem;")
 		fmt.Println("    location / {")
-		fmt.Printf("      proxy_pass http://127.0.0.1%s;\n", cfg.ListenAddr)
+		fmt.Printf("      proxy_pass http://%s;\n", proxyAddr)
 		fmt.Println("      proxy_set_header Host $host;")
 		fmt.Println("      proxy_set_header X-Real-IP $remote_addr;")
 		fmt.Println("      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;")
