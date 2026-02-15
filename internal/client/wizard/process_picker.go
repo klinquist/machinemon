@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -242,37 +243,93 @@ func isAlreadyMonitored(processes []client.ProcessConfig, matchPattern string) b
 
 func printMonitoredProcessTable(processes []client.ProcessConfig) {
 	const (
-		nameWidth    = 24
-		typeWidth    = 10
-		patternWidth = 34
+		indexWidth      = 2
+		typeWidth       = 12
+		defaultName     = 28
+		minName         = 18
+		minPattern      = 24
+		rowOverheadCols = 15 // prefix + separators/spaces for 4-column row
 	)
 
+	targetWidth := 120
+	if raw := strings.TrimSpace(os.Getenv("COLUMNS")); raw != "" {
+		if cols, err := strconv.Atoi(raw); err == nil && cols > 0 {
+			targetWidth = cols
+		}
+	}
+	if targetWidth < 72 {
+		targetWidth = 72
+	}
+
+	nameWidth := defaultName
+	patternWidth := targetWidth - (indexWidth + typeWidth + nameWidth + rowOverheadCols)
+	if patternWidth < minPattern {
+		nameWidth -= (minPattern - patternWidth)
+		if nameWidth < minName {
+			nameWidth = minName
+		}
+		patternWidth = targetWidth - (indexWidth + typeWidth + nameWidth + rowOverheadCols)
+	}
+	if patternWidth < minPattern {
+		patternWidth = minPattern
+	}
+
 	fmt.Println("  Currently monitored processes:")
-	border := fmt.Sprintf("  +----+-%s-+-%s-+-%s-+",
+	indexBorder := strings.Repeat("-", indexWidth+2)
+	border := fmt.Sprintf("  +%s+-%s-+-%s-+-%s-+",
+		indexBorder,
 		strings.Repeat("-", nameWidth),
 		strings.Repeat("-", typeWidth),
 		strings.Repeat("-", patternWidth),
 	)
 	fmt.Println(border)
-	fmt.Printf("  | %-2s | %-*s | %-*s | %-*s |\n",
-		"#", nameWidth, "Friendly Name", typeWidth, "Type", patternWidth, "Match Pattern")
+	fmt.Printf("  | %-*s | %-*s | %-*s | %-*s |\n",
+		indexWidth, "#", nameWidth, "Friendly Name", typeWidth, "Type", patternWidth, "Match Pattern")
 	fmt.Println(border)
 
 	if len(processes) == 0 {
-		fmt.Printf("  | %-2s | %-*s | %-*s | %-*s |\n", "", nameWidth, "<none>", typeWidth, "", patternWidth, "")
+		fmt.Printf("  | %-*s | %-*s | %-*s | %-*s |\n", indexWidth, "", nameWidth, "<none>", typeWidth, "", patternWidth, "")
 		fmt.Println(border)
 		fmt.Println()
 		return
 	}
 
+	rowSeparator := fmt.Sprintf("  +%s+-%s-+-%s-+-%s-+",
+		indexBorder,
+		strings.Repeat("-", nameWidth),
+		strings.Repeat("-", typeWidth),
+		strings.Repeat("-", patternWidth),
+	)
+
 	for i, p := range processes {
 		matchType := normalizeMatchType(p.MatchType)
-		fmt.Printf("  | %2d | %-*s | %-*s | %-*s |\n",
-			i+1,
-			nameWidth, truncate(p.FriendlyName, nameWidth),
-			typeWidth, truncate(matchType, typeWidth),
-			patternWidth, truncate(p.MatchPattern, patternWidth),
-		)
+		nameLines := wrapToWidth(p.FriendlyName, nameWidth)
+		typeLines := wrapToWidth(matchType, typeWidth)
+		patternLines := wrapToWidth(p.MatchPattern, patternWidth)
+
+		maxLines := len(nameLines)
+		if len(typeLines) > maxLines {
+			maxLines = len(typeLines)
+		}
+		if len(patternLines) > maxLines {
+			maxLines = len(patternLines)
+		}
+
+		for line := 0; line < maxLines; line++ {
+			indexValue := ""
+			if line == 0 {
+				indexValue = strconv.Itoa(i + 1)
+			}
+			fmt.Printf("  | %*s | %-*s | %-*s | %-*s |\n",
+				indexWidth, indexValue,
+				nameWidth, lineValue(nameLines, line),
+				typeWidth, lineValue(typeLines, line),
+				patternWidth, lineValue(patternLines, line),
+			)
+		}
+		if i < len(processes)-1 {
+			fmt.Println(rowSeparator)
+		}
 	}
 	fmt.Println(border)
 	fmt.Println()
@@ -312,4 +369,57 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+func lineValue(lines []string, idx int) string {
+	if idx < 0 || idx >= len(lines) {
+		return ""
+	}
+	return lines[idx]
+}
+
+func wrapToWidth(s string, width int) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return []string{""}
+	}
+	if width <= 0 {
+		return []string{s}
+	}
+
+	r := []rune(s)
+	lines := make([]string, 0, len(r)/width+1)
+
+	for len(r) > 0 {
+		if len(r) <= width {
+			lines = append(lines, string(r))
+			break
+		}
+
+		cut := width
+		for i := width; i > 0; i-- {
+			if r[i-1] == ' ' {
+				cut = i - 1
+				break
+			}
+		}
+		if cut <= 0 {
+			cut = width
+		}
+
+		chunk := strings.TrimSpace(string(r[:cut]))
+		if chunk != "" {
+			lines = append(lines, chunk)
+		}
+
+		r = r[cut:]
+		for len(r) > 0 && r[0] == ' ' {
+			r = r[1:]
+		}
+	}
+
+	if len(lines) == 0 {
+		return []string{""}
+	}
+	return lines
 }
