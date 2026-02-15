@@ -118,6 +118,8 @@ machinemon-client --setup \
 
 # Install as a system service
 sudo machinemon-client --service-install
+# macOS (launchd): run without sudo
+# machinemon-client --service-install
 ```
 
 The `--setup` flow is menu-based and supports:
@@ -721,6 +723,8 @@ sudo machinemon-server --service-install
 
 # Install client as a service
 sudo machinemon-client --service-install
+# macOS client (launchd): run without sudo
+# machinemon-client --service-install
 ```
 
 Supported init systems:

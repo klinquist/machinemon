@@ -121,7 +121,11 @@ main() {
     echo ""
     echo "Next steps:"
     echo "  1. Run setup:          machinemon-client --setup"
-    echo "  2. Install as service: sudo machinemon-client --service-install"
+    if [ "$OS" = "darwin" ]; then
+        echo "  2. Install as service: machinemon-client --service-install"
+    else
+        echo "  2. Install as service: sudo machinemon-client --service-install"
+    fi
     echo "     (auto-detects systemd, sysvinit, openrc, upstart, or launchd)"
 }
 

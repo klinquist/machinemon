@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -99,6 +101,28 @@ func Uninstall(name string) error {
 	}
 }
 
+// Start starts (and enables where appropriate) the service under the detected init system.
+func Start(name string) error {
+	initSys := Detect()
+	switch initSys {
+	case Systemd:
+		return runPrivileged("systemctl", "enable", "--now", name)
+	case SysVInit:
+		return runPrivileged("service", name, "start")
+	case OpenRC:
+		if err := runPrivileged("rc-service", name, "start"); err != nil {
+			return err
+		}
+		return runPrivileged("rc-update", "add", name, "default")
+	case Upstart:
+		return runPrivileged("start", name)
+	case Launchd:
+		return startLaunchd(name)
+	default:
+		return fmt.Errorf("could not detect init system")
+	}
+}
+
 // IsRunning reports whether a service appears to be running under the detected init system.
 func IsRunning(name string) (bool, error) {
 	initSys := Detect()
@@ -140,8 +164,12 @@ func IsRunning(name string) (bool, error) {
 		}
 		return strings.Contains(string(out), "start/running"), nil
 	case Launchd:
+		target, err := launchdTarget()
+		if err != nil {
+			return false, err
+		}
 		label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
-		out, err := exec.Command("launchctl", "list", label).CombinedOutput()
+		out, err := runLaunchctl(target, "list", label)
 		if err != nil {
 			if _, ok := err.(*exec.ExitError); ok {
 				return false, nil
@@ -167,11 +195,7 @@ func Restart(name string) error {
 	case Upstart:
 		return runPrivileged("restart", name)
 	case Launchd:
-		label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
-		home, _ := os.UserHomeDir()
-		path := filepath.Join(home, "Library", "LaunchAgents", label+".plist")
-		_ = exec.Command("launchctl", "unload", path).Run()
-		return exec.Command("launchctl", "load", path).Run()
+		return startLaunchd(name)
 	default:
 		return fmt.Errorf("could not detect init system")
 	}
@@ -450,7 +474,98 @@ func uninstallUpstart(name string) error {
 
 // --- launchd ---
 
+type launchdUser struct {
+	Username string
+	UID      string
+	HomeDir  string
+}
+
+func launchdTarget() (*launchdUser, error) {
+	if runtime.GOOS != "darwin" {
+		return nil, fmt.Errorf("launchd is only available on macOS")
+	}
+
+	// If invoked with sudo, target the invoking desktop user, not root.
+	if os.Getuid() == 0 {
+		sudoUser := strings.TrimSpace(os.Getenv("SUDO_USER"))
+		if sudoUser == "" {
+			return nil, fmt.Errorf("running as root on macOS is not supported without SUDO_USER; run without sudo")
+		}
+		u, err := user.Lookup(sudoUser)
+		if err != nil {
+			return nil, fmt.Errorf("lookup sudo user %q: %w", sudoUser, err)
+		}
+		if strings.TrimSpace(u.Uid) == "" || strings.TrimSpace(u.HomeDir) == "" {
+			return nil, fmt.Errorf("invalid sudo user account info for %q", sudoUser)
+		}
+		return &launchdUser{
+			Username: sudoUser,
+			UID:      u.Uid,
+			HomeDir:  u.HomeDir,
+		}, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return nil, fmt.Errorf("determine user home: %w", err)
+	}
+	uid := strconv.Itoa(os.Getuid())
+	username := ""
+	if u, err := user.Current(); err == nil {
+		if strings.TrimSpace(u.Username) != "" {
+			username = u.Username
+		}
+		if strings.TrimSpace(u.Uid) != "" {
+			uid = u.Uid
+		}
+	}
+	return &launchdUser{
+		Username: username,
+		UID:      uid,
+		HomeDir:  home,
+	}, nil
+}
+
+func runLaunchctl(target *launchdUser, args ...string) ([]byte, error) {
+	if os.Getuid() == 0 && target != nil && strings.TrimSpace(target.Username) != "" {
+		sudoArgs := append([]string{"-u", target.Username, "launchctl"}, args...)
+		return exec.Command("sudo", sudoArgs...).CombinedOutput()
+	}
+	return exec.Command("launchctl", args...).CombinedOutput()
+}
+
+func startLaunchd(name string) error {
+	target, err := launchdTarget()
+	if err != nil {
+		return err
+	}
+
+	label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
+	path := filepath.Join(target.HomeDir, "Library", "LaunchAgents", label+".plist")
+	domain := "gui/" + target.UID
+
+	bootstrapOut, bootstrapErr := runLaunchctl(target, "bootstrap", domain, path)
+	if bootstrapErr != nil {
+		msg := strings.ToLower(string(bootstrapOut))
+		// Already loaded/bootstrapped is fine.
+		if !strings.Contains(msg, "already") && !strings.Contains(msg, "in bootstrap") && !strings.Contains(msg, "exists") {
+			return fmt.Errorf("launchctl bootstrap failed: %v (%s)", bootstrapErr, strings.TrimSpace(string(bootstrapOut)))
+		}
+	}
+
+	kickstartOut, kickstartErr := runLaunchctl(target, "kickstart", "-k", domain+"/"+label)
+	if kickstartErr != nil {
+		return fmt.Errorf("launchctl kickstart failed: %v (%s)", kickstartErr, strings.TrimSpace(string(kickstartOut)))
+	}
+	return nil
+}
+
 func installLaunchd(name, binPath, configPath string) error {
+	target, err := launchdTarget()
+	if err != nil {
+		return err
+	}
+
 	label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
 
 	args := fmt.Sprintf(`        <string>%s</string>`, binPath)
@@ -480,28 +595,37 @@ func installLaunchd(name, binPath, configPath string) error {
 </plist>
 `, label, args, name, name)
 
-	home, _ := os.UserHomeDir()
-	dir := filepath.Join(home, "Library", "LaunchAgents")
+	dir := filepath.Join(target.HomeDir, "Library", "LaunchAgents")
 	_ = os.MkdirAll(dir, 0755)
 	path := filepath.Join(dir, label+".plist")
 
 	if err := os.WriteFile(path, []byte(plist), 0644); err != nil {
 		return fmt.Errorf("write plist: %w", err)
 	}
+	if os.Getuid() == 0 {
+		if uid, err := strconv.Atoi(target.UID); err == nil {
+			_ = os.Chown(path, uid, -1)
+		}
+	}
 
 	fmt.Printf("LaunchAgent installed: %s\n", path)
 	fmt.Println()
-	fmt.Printf("  Start now:   launchctl load %s\n", path)
+	fmt.Printf("  Start now:   launchctl bootstrap gui/%s %s\n", target.UID, path)
+	fmt.Printf("               launchctl kickstart -k gui/%s/%s\n", target.UID, label)
 	fmt.Printf("  Check logs:  tail -f /tmp/%s.log\n", name)
 	return nil
 }
 
 func uninstallLaunchd(name string) error {
-	label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
-	home, _ := os.UserHomeDir()
-	path := filepath.Join(home, "Library", "LaunchAgents", label+".plist")
+	target, err := launchdTarget()
+	if err != nil {
+		return err
+	}
 
-	_ = exec.Command("launchctl", "unload", path).Run()
+	label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
+	path := filepath.Join(target.HomeDir, "Library", "LaunchAgents", label+".plist")
+
+	_, _ = runLaunchctl(target, "bootout", "gui/"+target.UID+"/"+label)
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}

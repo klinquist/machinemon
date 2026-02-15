@@ -228,7 +228,11 @@ main() {
     echo ""
     echo "Next steps:"
     echo "  1. Configure:          machinemon-client --setup --server=%[1]s${INSECURE_FLAG}"
-    echo "  2. Install as service: sudo machinemon-client --service-install"
+    if [ "$OS" = "darwin" ]; then
+        echo "  2. Install as service: machinemon-client --service-install"
+    else
+        echo "  2. Install as service: sudo machinemon-client --service-install"
+    fi
     echo "     (auto-detects systemd, sysvinit, openrc, upstart, or launchd)"
     echo ""
     echo "  3. Verify on the dashboard: %[1]s"

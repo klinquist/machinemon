@@ -84,11 +84,14 @@ func main() {
 
 		// Do not launch interactive daemon after setup.
 		// If service is already running, offer restart so it picks up new config.
-		if running, err := service.IsRunning("machinemon-client"); err != nil {
+		running := false
+		if isRunning, err := service.IsRunning("machinemon-client"); err != nil {
 			logger.Warn("could not determine service status", "err", err)
-			printServiceNextSteps()
-			return
-		} else if running {
+		} else {
+			running = isRunning
+		}
+
+		if running {
 			var restartService bool
 			form := huh.NewForm(
 				huh.NewGroup(
@@ -110,6 +113,36 @@ func main() {
 			}
 			return
 		}
+
+		var installAndStart bool
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("MachineMon client service is not running. Install/update service and start it now?").
+					Value(&installAndStart),
+			),
+		)
+		if err := form.Run(); err != nil {
+			logger.Error("prompt failed", "err", err)
+			os.Exit(1)
+		}
+
+		if installAndStart {
+			binPath, _ := os.Executable()
+			cfgAbs, _ := filepath.Abs(*configPath)
+
+			if err := service.Install("machinemon-client", binPath, cfgAbs); err != nil {
+				logger.Error("failed to install service", "err", err)
+				os.Exit(1)
+			}
+			if err := service.Start("machinemon-client"); err != nil {
+				logger.Error("failed to start service", "err", err)
+				os.Exit(1)
+			}
+			logger.Info("service installed and started", "service", "machinemon-client")
+			return
+		}
+
 		printServiceNextSteps()
 		return
 	}
@@ -140,24 +173,31 @@ func printServiceNextSteps() {
 	fmt.Println()
 	fmt.Println("Configuration saved.")
 	fmt.Println("Run the client as a service:")
-	fmt.Println("  sudo machinemon-client --service-install")
 
 	switch service.Detect() {
 	case service.Systemd:
+		fmt.Println("  sudo machinemon-client --service-install")
 		fmt.Println("Then start it:")
 		fmt.Println("  sudo systemctl enable --now machinemon-client")
 	case service.OpenRC:
+		fmt.Println("  sudo machinemon-client --service-install")
 		fmt.Println("Then start and enable it:")
 		fmt.Println("  sudo rc-service machinemon-client start")
 		fmt.Println("  sudo rc-update add machinemon-client default")
 	case service.SysVInit:
+		fmt.Println("  sudo machinemon-client --service-install")
 		fmt.Println("Then start it:")
 		fmt.Println("  sudo service machinemon-client start")
 	case service.Upstart:
+		fmt.Println("  sudo machinemon-client --service-install")
 		fmt.Println("Then start it:")
 		fmt.Println("  sudo start machinemon-client")
 	case service.Launchd:
+		fmt.Println("  machinemon-client --service-install")
 		fmt.Println("Then start it:")
-		fmt.Println("  launchctl load ~/Library/LaunchAgents/com.machinemon.client.plist")
+		fmt.Println("  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.machinemon.client.plist")
+		fmt.Println("  launchctl kickstart -k gui/$(id -u)/com.machinemon.client")
+	default:
+		fmt.Println("  machinemon-client --service-install")
 	}
 }
