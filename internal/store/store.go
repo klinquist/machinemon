@@ -36,6 +36,7 @@ type Store interface {
 	GetWatchedProcesses(clientID string) ([]models.WatchedProcess, error)
 
 	// Checks (extensible typed check system: script, http, file_touch, ...)
+	DeleteCheckSnapshots(clientID, friendlyName, checkType string) error
 	InsertCheckSnapshots(clientID string, checks []models.CheckPayload) error
 	GetLatestCheckSnapshots(clientID string) ([]models.CheckSnapshot, error)
 	GetPreviousCheckSnapshots(clientID string) ([]models.CheckSnapshot, error)

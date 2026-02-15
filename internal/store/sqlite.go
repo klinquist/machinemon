@@ -467,6 +467,15 @@ func (s *SQLiteStore) DeleteWatchedProcess(clientID, friendlyName string) error 
 	return tx.Commit()
 }
 
+func (s *SQLiteStore) DeleteCheckSnapshots(clientID, friendlyName, checkType string) error {
+	if strings.TrimSpace(checkType) == "" {
+		_, err := s.db.Exec(`DELETE FROM check_snapshots WHERE client_id = ? AND friendly_name = ?`, clientID, friendlyName)
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM check_snapshots WHERE client_id = ? AND friendly_name = ? AND check_type = ?`, clientID, friendlyName, checkType)
+	return err
+}
+
 func (s *SQLiteStore) InsertProcessSnapshots(clientID string, procs []models.ProcessPayload) error {
 	if len(procs) == 0 {
 		return nil

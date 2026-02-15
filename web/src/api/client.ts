@@ -109,6 +109,11 @@ export async function deleteWatchedProcess(id: string, friendlyName: string): Pr
   await fetchJSON(`/clients/${id}/processes?${params.toString()}`, { method: 'DELETE' });
 }
 
+export async function deleteCheckSnapshot(id: string, friendlyName: string, checkType: string): Promise<void> {
+  const params = new URLSearchParams({ friendly_name: friendlyName, check_type: checkType });
+  await fetchJSON(`/clients/${id}/checks?${params.toString()}`, { method: 'DELETE' });
+}
+
 // Alerts
 export async function fetchAlerts(clientId?: string, severity?: string, limit = 100, offset = 0): Promise<{ alerts: Alert[]; total: number }> {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });

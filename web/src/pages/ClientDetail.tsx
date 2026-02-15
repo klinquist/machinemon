@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchClient, deleteClient, deleteWatchedProcess, setMute, fetchMetrics, fetchAlerts, setThresholds, clearThresholds, setClientName, fetchSettings } from '../api/client';
+import { fetchClient, deleteClient, deleteWatchedProcess, deleteCheckSnapshot, setMute, fetchMetrics, fetchAlerts, setThresholds, clearThresholds, setClientName, fetchSettings } from '../api/client';
 import type { Client, Metrics, ProcessSnapshot, CheckSnapshot, Alert, Thresholds } from '../types';
 import MetricGauge from '../components/MetricGauge';
 import StatusDot from '../components/StatusDot';
@@ -44,6 +44,8 @@ export default function ClientDetail() {
   const [nameInput, setNameInput] = useState('');
   const [thresholdsForm, setThresholdsForm] = useState<Thresholds>(FALLBACK_THRESHOLDS);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: 'process' | 'check'; friendlyName: string; checkType?: string } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [showThresholds, setShowThresholds] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
 
@@ -149,15 +151,31 @@ export default function ClientDetail() {
     }
   };
 
-  const handleDeleteProcess = async (friendlyName: string) => {
-    if (!id) return;
-    if (!confirm(`Delete watched process "${friendlyName}" from server?`)) return;
+  const handleDeleteProcess = (friendlyName: string) => {
+    setDeleteTarget({ kind: 'process', friendlyName });
+  };
+
+  const handleDeleteCheck = (friendlyName: string, checkType: string) => {
+    setDeleteTarget({ kind: 'check', friendlyName, checkType });
+  };
+
+  const handleConfirmDeleteTarget = async () => {
+    if (!id || !deleteTarget) return;
+    setDeleteBusy(true);
     try {
-      await deleteWatchedProcess(id, friendlyName);
-      setStatus(`Deleted watched process: ${friendlyName}`);
-      loadData();
+      if (deleteTarget.kind === 'process') {
+        await deleteWatchedProcess(id, deleteTarget.friendlyName);
+        setStatus(`Deleted watched process: ${deleteTarget.friendlyName}`);
+      } else {
+        await deleteCheckSnapshot(id, deleteTarget.friendlyName, deleteTarget.checkType || '');
+        setStatus(`Deleted check: ${deleteTarget.friendlyName}`);
+      }
+      setDeleteTarget(null);
+      await loadData();
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -292,7 +310,15 @@ export default function ClientDetail() {
                     <td className="py-2 text-gray-400">-</td>
                     <td className="py-2 text-gray-400">-</td>
                     <td className="py-2 text-gray-400">-</td>
-                    <td className="py-2 text-right text-gray-400">-</td>
+                    <td className="py-2 text-right">
+                      <button
+                        onClick={() => handleDeleteCheck(c.friendly_name, c.check_type)}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
+                        title="Delete from server"
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -345,23 +371,30 @@ export default function ClientDetail() {
         </button>
         {showThresholds && (
           <div className="mt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
-                ['cpu_warn_pct', 'CPU Warn %'],
-                ['cpu_crit_pct', 'CPU Crit %'],
-                ['mem_warn_pct', 'Mem Warn %'],
-                ['mem_crit_pct', 'Mem Crit %'],
-                ['disk_warn_pct', 'Disk Warn %'],
-                ['disk_crit_pct', 'Disk Crit %'],
-              ].map(([key, label]) => (
-                <div key={key}>
-                  <label className="block text-sm text-gray-600 mb-1">{label}</label>
+                { title: 'CPU', warnKey: 'cpu_warn_pct', critKey: 'cpu_crit_pct' },
+                { title: 'Memory', warnKey: 'mem_warn_pct', critKey: 'mem_crit_pct' },
+                { title: 'Disk', warnKey: 'disk_warn_pct', critKey: 'disk_crit_pct' },
+              ].map(group => (
+                <div key={group.title} className="border rounded-lg p-3 bg-gray-50">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">{group.title}</h3>
+                  <label className="block text-xs text-gray-600 mb-1">Warning %</label>
                   <input
                     type="number"
                     min={0}
                     max={100}
-                    value={(thresholdsForm as any)[key]}
-                    onChange={e => setThresholdsForm({ ...thresholdsForm, [key]: Number(e.target.value) } as Thresholds)}
+                    value={(thresholdsForm as any)[group.warnKey]}
+                    onChange={e => setThresholdsForm({ ...thresholdsForm, [group.warnKey]: Number(e.target.value) } as Thresholds)}
+                    className="w-full px-3 py-1.5 border rounded text-sm mb-2"
+                  />
+                  <label className="block text-xs text-gray-600 mb-1">Critical %</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={(thresholdsForm as any)[group.critKey]}
+                    onChange={e => setThresholdsForm({ ...thresholdsForm, [group.critKey]: Number(e.target.value) } as Thresholds)}
                     className="w-full px-3 py-1.5 border rounded text-sm"
                   />
                 </div>
@@ -428,6 +461,42 @@ export default function ClientDetail() {
               </button>
               <button onClick={handleRename} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Process/Check Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
+          <div className="w-full max-w-md bg-white rounded-lg border shadow-lg p-4">
+            <h2 className="font-semibold text-gray-800 mb-2">
+              Delete {deleteTarget.kind === 'process' ? 'Process' : 'Check'}?
+            </h2>
+            <p className="text-sm text-gray-600 mb-1">
+              <span className="font-medium">{deleteTarget.friendlyName}</span>
+              {deleteTarget.kind === 'check' && deleteTarget.checkType ? (
+                <span className="text-gray-500"> ({deleteTarget.checkType})</span>
+              ) : null}
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              This removes it from the server now. It will automatically return if the client sends it again on a future check-in.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 border rounded text-sm hover:bg-gray-50"
+                disabled={deleteBusy}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDeleteTarget}
+                className="px-4 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:opacity-60"
+                disabled={deleteBusy}
+              >
+                {deleteBusy ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

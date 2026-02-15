@@ -230,3 +230,20 @@ func (s *Server) handleDeleteProcess(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
+
+func (s *Server) handleDeleteCheck(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	friendlyName := strings.TrimSpace(r.URL.Query().Get("friendly_name"))
+	checkType := strings.TrimSpace(r.URL.Query().Get("check_type"))
+	if friendlyName == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "friendly_name is required"})
+		return
+	}
+
+	if err := s.store.DeleteCheckSnapshots(id, friendlyName, checkType); err != nil {
+		s.logger.Error("failed to delete check snapshots", "id", id, "friendly_name", friendlyName, "check_type", checkType, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
