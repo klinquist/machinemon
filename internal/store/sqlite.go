@@ -102,6 +102,7 @@ func (s *SQLiteStore) UpsertClient(req models.CheckInRequest) (string, bool, boo
 func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	c := &models.Client{}
 	var mutedUntil sql.NullTime
+	var muteReason sql.NullString
 	err := s.db.QueryRow(`SELECT id, hostname, os, arch, client_version, first_seen_at, last_seen_at,
 		is_online, is_deleted, cpu_warn_pct, cpu_crit_pct, mem_warn_pct, mem_crit_pct,
 		disk_warn_pct, disk_crit_pct, alerts_muted, muted_until, mute_reason
@@ -109,7 +110,7 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 		&c.ID, &c.Hostname, &c.OS, &c.Arch, &c.ClientVersion,
 		&c.FirstSeenAt, &c.LastSeenAt, &c.IsOnline, &c.IsDeleted,
 		&c.CPUWarnPct, &c.CPUCritPct, &c.MemWarnPct, &c.MemCritPct,
-		&c.DiskWarnPct, &c.DiskCritPct, &c.AlertsMuted, &mutedUntil, &c.MuteReason)
+		&c.DiskWarnPct, &c.DiskCritPct, &c.AlertsMuted, &mutedUntil, &muteReason)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -118,6 +119,9 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	}
 	if mutedUntil.Valid {
 		c.MutedUntil = &mutedUntil.Time
+	}
+	if muteReason.Valid {
+		c.MuteReason = muteReason.String
 	}
 	return c, nil
 }
@@ -204,13 +208,17 @@ func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 	for rows.Next() {
 		var c models.Client
 		var mutedUntil sql.NullTime
+		var muteReason sql.NullString
 		err := rows.Scan(&c.ID, &c.Hostname, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
-			&c.AlertsMuted, &mutedUntil, &c.MuteReason)
+			&c.AlertsMuted, &mutedUntil, &muteReason)
 		if err != nil {
 			return nil, err
 		}
 		if mutedUntil.Valid {
 			c.MutedUntil = &mutedUntil.Time
+		}
+		if muteReason.Valid {
+			c.MuteReason = muteReason.String
 		}
 		clients = append(clients, c)
 	}
@@ -236,13 +244,17 @@ func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Clie
 	for rows.Next() {
 		var c models.Client
 		var mutedUntil sql.NullTime
+		var muteReason sql.NullString
 		err := rows.Scan(&c.ID, &c.Hostname, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
-			&c.AlertsMuted, &mutedUntil, &c.MuteReason)
+			&c.AlertsMuted, &mutedUntil, &muteReason)
 		if err != nil {
 			return nil, err
 		}
 		if mutedUntil.Valid {
 			c.MutedUntil = &mutedUntil.Time
+		}
+		if muteReason.Valid {
+			c.MuteReason = muteReason.String
 		}
 		clients = append(clients, c)
 	}

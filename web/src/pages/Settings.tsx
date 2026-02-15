@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { fetchProviders, createProvider, deleteProvider, testProvider, changePassword, fetchSettings, updateSettings } from '../api/client';
+import { fetchProviders, createProvider, updateProvider, deleteProvider, testProvider, changePassword, fetchSettings, updateSettings } from '../api/client';
 import type { AlertProvider } from '../types';
-import { Trash2, Send, Plus } from 'lucide-react';
+import { Trash2, Send, Plus, Pencil } from 'lucide-react';
 
 export default function Settings() {
   const [providers, setProviders] = useState<AlertProvider[]>([]);
@@ -9,6 +9,10 @@ export default function Settings() {
   const [providerType, setProviderType] = useState<'twilio' | 'pushover' | 'smtp'>('pushover');
   const [providerName, setProviderName] = useState('');
   const [providerConfig, setProviderConfig] = useState('{}');
+  const [editingProviderId, setEditingProviderId] = useState<number | null>(null);
+  const [editProviderName, setEditProviderName] = useState('');
+  const [editProviderConfig, setEditProviderConfig] = useState('{}');
+  const [editProviderEnabled, setEditProviderEnabled] = useState(true);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [adminPw, setAdminPw] = useState('');
   const [clientPw, setClientPw] = useState('');
@@ -43,7 +47,41 @@ export default function Settings() {
   const handleDeleteProvider = async (id: number) => {
     if (!confirm('Delete this alert provider?')) return;
     await deleteProvider(id);
+    if (editingProviderId === id) {
+      setEditingProviderId(null);
+    }
     loadData();
+  };
+
+  const startEditProvider = (provider: AlertProvider) => {
+    setShowAddProvider(false);
+    setEditingProviderId(provider.id);
+    setEditProviderName(provider.name);
+    setEditProviderConfig(provider.config || '{}');
+    setEditProviderEnabled(provider.enabled);
+  };
+
+  const cancelEditProvider = () => {
+    setEditingProviderId(null);
+    setEditProviderName('');
+    setEditProviderConfig('{}');
+    setEditProviderEnabled(true);
+  };
+
+  const handleSaveProviderEdit = async (provider: AlertProvider) => {
+    try {
+      await updateProvider(provider.id, {
+        type: provider.type,
+        name: editProviderName,
+        enabled: editProviderEnabled,
+        config: editProviderConfig,
+      });
+      setMessage('Provider updated');
+      cancelEditProvider();
+      loadData();
+    } catch (err: any) {
+      setMessage(`Error: ${err.message}`);
+    }
   };
 
   const handleTestProvider = async (id: number) => {
@@ -143,20 +181,71 @@ export default function Settings() {
         )}
 
         {providers.map(p => (
-          <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
-            <div>
-              <span className="font-medium text-gray-700">{p.name}</span>
-              <span className="ml-2 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{p.type}</span>
-              {!p.enabled && <span className="ml-2 text-xs text-red-400">disabled</span>}
-            </div>
-            <div className="flex gap-1">
-              <button onClick={() => handleTestProvider(p.id)} className="p-1.5 text-gray-400 hover:text-blue-500" title="Send test alert">
-                <Send size={14} />
-              </button>
-              <button onClick={() => handleDeleteProvider(p.id)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete">
-                <Trash2 size={14} />
-              </button>
-            </div>
+          <div key={p.id} className="py-2 border-b last:border-0">
+            {editingProviderId === p.id ? (
+              <div className="p-3 bg-gray-50 rounded border">
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Name</label>
+                    <input
+                      value={editProviderName}
+                      onChange={e => setEditProviderName(e.target.value)}
+                      className="w-full px-3 py-1.5 border rounded text-sm"
+                      required
+                    />
+                  </div>
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{p.type}</span>
+                    </div>
+                    <label className="text-sm text-gray-600 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={editProviderEnabled}
+                        onChange={e => setEditProviderEnabled(e.target.checked)}
+                      />
+                      Enabled
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Config (JSON)</label>
+                  <textarea
+                    value={editProviderConfig}
+                    onChange={e => setEditProviderConfig(e.target.value)}
+                    className="w-full px-3 py-1.5 border rounded text-sm font-mono"
+                    rows={5}
+                  />
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button type="button" onClick={() => handleSaveProviderEdit(p)} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+                    Save
+                  </button>
+                  <button type="button" onClick={cancelEditProvider} className="px-4 py-2 border rounded text-sm hover:bg-gray-50">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-medium text-gray-700">{p.name}</span>
+                  <span className="ml-2 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{p.type}</span>
+                  {!p.enabled && <span className="ml-2 text-xs text-red-400">disabled</span>}
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => startEditProvider(p)} className="p-1.5 text-gray-400 hover:text-amber-600" title="Edit provider">
+                    <Pencil size={14} />
+                  </button>
+                  <button onClick={() => handleTestProvider(p.id)} className="p-1.5 text-gray-400 hover:text-blue-500" title="Send test alert">
+                    <Send size={14} />
+                  </button>
+                  <button onClick={() => handleDeleteProvider(p.id)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
 
