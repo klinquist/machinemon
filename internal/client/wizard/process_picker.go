@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -54,16 +55,16 @@ func maybeRemoveProcesses(cfg *client.Config) error {
 		return nil
 	}
 
-	options := make([]huh.Option[int], 0, len(cfg.Processes))
+	options := make([]huh.Option[string], 0, len(cfg.Processes))
 	for i, p := range cfg.Processes {
 		label := fmt.Sprintf("%s (%s)", p.FriendlyName, truncate(p.MatchPattern, 50))
-		options = append(options, huh.NewOption(label, i))
+		options = append(options, huh.NewOption(label, strconv.Itoa(i)))
 	}
 
-	var selected []int
+	var selected []string
 	removeForm := huh.NewForm(
 		huh.NewGroup(
-			huh.NewMultiSelect[int]().
+			huh.NewMultiSelect[string]().
 				Title("Select processes to stop monitoring").
 				Description("Use space to select, enter to confirm").
 				Options(options...).
@@ -74,17 +75,19 @@ func maybeRemoveProcesses(cfg *client.Config) error {
 		return err
 	}
 	if len(selected) == 0 {
+		fmt.Println("  No processes selected.")
+		fmt.Println()
 		return nil
 	}
 
-	removeIdx := make(map[int]bool, len(selected))
+	removeIdx := make(map[string]bool, len(selected))
 	for _, idx := range selected {
 		removeIdx[idx] = true
 	}
 
 	kept := make([]client.ProcessConfig, 0, len(cfg.Processes)-len(selected))
 	for i, p := range cfg.Processes {
-		if !removeIdx[i] {
+		if !removeIdx[strconv.Itoa(i)] {
 			kept = append(kept, p)
 		}
 	}
@@ -128,20 +131,20 @@ func maybeAddProcesses(cfg *client.Config) error {
 		return nil
 	}
 
-	options := make([]huh.Option[int], 0, len(filtered))
+	options := make([]huh.Option[string], 0, len(filtered))
 	for i, entry := range filtered {
 		display := entry.candidate.Cmdline
 		if len(display) > 80 {
 			display = display[:77] + "..."
 		}
 		label := fmt.Sprintf("[%d] %s", entry.candidate.PID, display)
-		options = append(options, huh.NewOption(label, i))
+		options = append(options, huh.NewOption(label, strconv.Itoa(i)))
 	}
 
-	var selected []int
+	var selected []string
 	selectForm := huh.NewForm(
 		huh.NewGroup(
-			huh.NewMultiSelect[int]().
+			huh.NewMultiSelect[string]().
 				Title("Select running processes to add").
 				Description("Use space to select, enter to confirm").
 				Options(options...).
@@ -152,7 +155,13 @@ func maybeAddProcesses(cfg *client.Config) error {
 		return err
 	}
 	if len(selected) == 0 {
+		fmt.Println("  No processes selected.")
+		fmt.Println()
 		return nil
+	}
+	selectedSet := make(map[string]bool, len(selected))
+	for _, idx := range selected {
+		selectedSet[idx] = true
 	}
 
 	existingNames := make(map[string]bool, len(cfg.Processes))
@@ -161,8 +170,11 @@ func maybeAddProcesses(cfg *client.Config) error {
 	}
 
 	additions := make([]client.ProcessConfig, 0, len(selected))
-	for _, idx := range selected {
-		c := filtered[idx].candidate
+	for idx, entry := range filtered {
+		if !selectedSet[strconv.Itoa(idx)] {
+			continue
+		}
+		c := entry.candidate
 		suggestedName := client.SuggestFriendlyName(c)
 		matchPattern := client.SuggestMatchPattern(c)
 
