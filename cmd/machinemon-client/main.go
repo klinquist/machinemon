@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/charmbracelet/huh"
 	"github.com/machinemon/machinemon/internal/client"
@@ -25,6 +26,14 @@ func main() {
 	serviceUninstall := flag.Bool("service-uninstall", false, "remove the system service")
 	versionFlag := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+
+	if runtime.GOOS == "darwin" && os.Getuid() == 0 {
+		if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+			fmt.Fprintf(os.Stderr, "Warning: running with sudo on macOS. launchd services should normally be installed as the logged-in user (%s).\n", sudoUser)
+		} else {
+			fmt.Fprintln(os.Stderr, "Warning: running as root on macOS. launchd services should normally be installed as a non-root user.")
+		}
+	}
 
 	if *versionFlag {
 		fmt.Println(version.String())
