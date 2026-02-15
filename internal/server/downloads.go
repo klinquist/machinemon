@@ -205,83 +205,6 @@ download_binary() {
     echo "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
 }
 
-install_systemd_service() {
-    if [ ! -d /etc/systemd/system ]; then
-        return
-    fi
-
-    if [ -f /etc/systemd/system/machinemon-client.service ]; then
-        echo "Systemd service already exists, skipping."
-        return
-    fi
-
-    cat > /tmp/machinemon-client.service <<'SYSTEMD'
-[Unit]
-Description=MachineMon Client
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/machinemon-client
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SYSTEMD
-
-    if [ "$(id -u)" -eq 0 ]; then
-        mv /tmp/machinemon-client.service /etc/systemd/system/
-        systemctl daemon-reload
-    else
-        sudo mv /tmp/machinemon-client.service /etc/systemd/system/
-        sudo systemctl daemon-reload
-    fi
-    echo "Systemd service installed."
-}
-
-install_launchd_plist() {
-    if [ "$OS" != "darwin" ]; then
-        return
-    fi
-
-    PLIST_DIR="$HOME/Library/LaunchAgents"
-    PLIST_FILE="$PLIST_DIR/com.machinemon.client.plist"
-
-    if [ -f "$PLIST_FILE" ]; then
-        echo "LaunchAgent plist already exists, skipping."
-        return
-    fi
-
-    mkdir -p "$PLIST_DIR"
-    cat > "$PLIST_FILE" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.machinemon.client</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>${INSTALL_DIR}/${BINARY}</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/machinemon-client.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/machinemon-client.log</string>
-</dict>
-</plist>
-PLIST
-    echo "LaunchAgent plist installed."
-}
-
 main() {
     echo "=== MachineMon Client Installer ==="
     echo "Server: %[1]s"
@@ -290,36 +213,20 @@ main() {
     detect_platform
     download_binary
 
-    case "$OS" in
-        linux)  install_systemd_service ;;
-        darwin) install_launchd_plist ;;
-    esac
-
     INSECURE_FLAG=""
     if [ -n "$INSECURE" ]; then
         INSECURE_FLAG=" --insecure"
     fi
 
     echo ""
-    echo "============================================"
-    echo "  Installation complete!"
-    echo "============================================"
+    echo "Installation complete!"
     echo ""
     echo "Next steps:"
+    echo "  1. Configure:          machinemon-client --setup --server=%[1]s${INSECURE_FLAG}"
+    echo "  2. Install as service: sudo machinemon-client --service-install"
+    echo "     (auto-detects systemd, sysvinit, openrc, upstart, or launchd)"
     echo ""
-    echo "  1. Configure the client:"
-    echo "     machinemon-client --setup --server=%[1]s${INSECURE_FLAG}"
-    echo ""
-    echo "  2. Start the service:"
-    if [ "$OS" = "darwin" ]; then
-        echo "     launchctl load ~/Library/LaunchAgents/com.machinemon.client.plist"
-    else
-        echo "     sudo systemctl enable --now machinemon-client"
-    fi
-    echo ""
-    echo "  3. Verify on the dashboard:"
-    echo "     %[1]s"
-    echo ""
+    echo "  3. Verify on the dashboard: %[1]s"
 }
 
 main "$@"

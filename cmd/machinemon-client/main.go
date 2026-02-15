@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/machinemon/machinemon/internal/client"
 	"github.com/machinemon/machinemon/internal/client/wizard"
+	"github.com/machinemon/machinemon/internal/service"
 	"github.com/machinemon/machinemon/internal/version"
 )
 
@@ -18,11 +20,29 @@ func main() {
 	password := flag.String("password", "", "client password (non-interactive setup)")
 	noDaemon := flag.Bool("no-daemon", false, "exit after setup, don't run daemon")
 	insecure := flag.Bool("insecure", false, "allow self-signed TLS certificates")
+	serviceInstall := flag.Bool("service-install", false, "install as a system service (auto-detects init system)")
+	serviceUninstall := flag.Bool("service-uninstall", false, "remove the system service")
 	versionFlag := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
 	if *versionFlag {
 		fmt.Println(version.String())
+		os.Exit(0)
+	}
+
+	if *serviceInstall {
+		binPath, _ := filepath.Abs(os.Args[0])
+		if err := service.Install("machinemon-client", binPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	if *serviceUninstall {
+		if err := service.Uninstall("machinemon-client"); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 

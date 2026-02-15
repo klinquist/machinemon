@@ -14,6 +14,7 @@ import (
 
 	"github.com/machinemon/machinemon/internal/alerting"
 	"github.com/machinemon/machinemon/internal/server"
+	"github.com/machinemon/machinemon/internal/service"
 	"github.com/machinemon/machinemon/internal/store"
 	"github.com/machinemon/machinemon/internal/version"
 )
@@ -24,11 +25,29 @@ var webDistEmbed embed.FS
 func main() {
 	configPath := flag.String("config", server.DefaultServerConfigPath(), "path to config file")
 	setup := flag.Bool("setup", false, "run initial setup")
+	serviceInstall := flag.Bool("service-install", false, "install as a system service (auto-detects init system)")
+	serviceUninstall := flag.Bool("service-uninstall", false, "remove the system service")
 	versionFlag := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
 	if *versionFlag {
 		fmt.Println(version.String())
+		os.Exit(0)
+	}
+
+	if *serviceInstall {
+		binPath, _ := filepath.Abs(os.Args[0])
+		if err := service.Install("machinemon-server", binPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	if *serviceUninstall {
+		if err := service.Uninstall("machinemon-server"); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 
