@@ -129,8 +129,6 @@ export default function ClientDetail() {
     const muted = !isScopedMuted(scope, target);
     try {
       await setScopedMute(id, scope, target, muted);
-      const label = scope === 'process' || scope === 'check' ? `${scope} '${target}'` : scope;
-      setStatus(`${muted ? 'Muted' : 'Unmuted'} ${label} alerts`);
       await loadData();
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
@@ -252,7 +250,11 @@ export default function ClientDetail() {
           <button onClick={() => loadData()} className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100" title="Refresh">
             <RefreshCw size={18} />
           </button>
-          <button onClick={handleToggleMute} className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100" title={client.alerts_muted ? 'Unmute' : 'Mute'}>
+          <button
+            onClick={handleToggleMute}
+            className={`p-2 rounded-md ${client.alerts_muted ? 'text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+            title={client.alerts_muted ? 'Unmute' : 'Mute'}
+          >
             {client.alerts_muted ? <Volume2 size={18} /> : <VolumeX size={18} />}
           </button>
           <button onClick={handleDelete} className="p-2 text-red-400 hover:text-red-600 rounded-md hover:bg-red-50" title="Delete">
@@ -294,7 +296,11 @@ export default function ClientDetail() {
                 {item.gauge}
                 <button
                   onClick={() => handleToggleScopedMute(item.scope)}
-                  className="absolute top-2 right-2 p-1 rounded bg-white/90 border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  className={`absolute top-2 right-2 p-1 rounded border ${
+                    muted
+                      ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
+                      : 'bg-white/90 border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}
                   title={muted ? `Unmute ${item.label} alerts` : `Mute ${item.label} alerts`}
                 >
                   {muted ? <Volume2 size={14} /> : <VolumeX size={14} />}
@@ -338,7 +344,11 @@ export default function ClientDetail() {
                     <td className="py-2 text-right">
                       <button
                         onClick={() => handleToggleScopedMute('process', p.friendly_name)}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 rounded mr-1"
+                        className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded mr-1 ${
+                          isScopedMuted('process', p.friendly_name)
+                            ? 'text-red-600 hover:bg-red-50'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
                         title={isScopedMuted('process', p.friendly_name) ? 'Unmute alerts' : 'Mute alerts'}
                       >
                         {isScopedMuted('process', p.friendly_name) ? <Volume2 size={12} /> : <VolumeX size={12} />} {isScopedMuted('process', p.friendly_name) ? 'Unmute' : 'Mute'}
@@ -368,7 +378,11 @@ export default function ClientDetail() {
                     <td className="py-2 text-right">
                       <button
                         onClick={() => handleToggleScopedMute('check', checkMuteTarget(c.friendly_name, c.check_type))}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 rounded mr-1"
+                        className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded mr-1 ${
+                          isScopedMuted('check', checkMuteTarget(c.friendly_name, c.check_type))
+                            ? 'text-red-600 hover:bg-red-50'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
                         title={isScopedMuted('check', checkMuteTarget(c.friendly_name, c.check_type)) ? 'Unmute alerts' : 'Mute alerts'}
                       >
                         {isScopedMuted('check', checkMuteTarget(c.friendly_name, c.check_type)) ? <Volume2 size={12} /> : <VolumeX size={12} />} {isScopedMuted('check', checkMuteTarget(c.friendly_name, c.check_type)) ? 'Unmute' : 'Mute'}
