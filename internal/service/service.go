@@ -171,7 +171,8 @@ WantedBy=multi-user.target
 	fmt.Printf("Systemd service installed: %s\n", path)
 	fmt.Println()
 	fmt.Printf("  Start now:   sudo systemctl enable --now %s\n", name)
-	fmt.Printf("  Check logs:  journalctl -u %s -f\n", name)
+	fmt.Printf("  Check status: sudo systemctl status %s --no-pager -l\n", name)
+	fmt.Printf("  Check logs:   sudo journalctl -u %s -f\n", name)
 	return nil
 }
 

@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 
@@ -15,8 +16,8 @@ type Config struct {
 	Password        string          `toml:"password"`
 	CheckInInterval int             `toml:"check_in_interval"` // seconds
 	InsecureSkipTLS bool            `toml:"insecure_skip_tls"` // allow self-signed certs
-	Processes []ProcessConfig `toml:"process"`
-	Checks   []CheckConfig   `toml:"check"`
+	Processes       []ProcessConfig `toml:"process"`
+	Checks          []CheckConfig   `toml:"check"`
 
 	path string `toml:"-"` // file path, not serialized
 }
@@ -93,15 +94,40 @@ func (c *Config) IsConfigured() bool {
 }
 
 func DefaultConfigPath() string {
-	switch runtime.GOOS {
-	case "darwin":
-		if home, err := os.UserHomeDir(); err == nil {
+	home := realUserHome()
+	if home != "" {
+		switch runtime.GOOS {
+		case "darwin":
 			return filepath.Join(home, "Library", "Application Support", "MachineMon", "client.toml")
-		}
-	default:
-		if home, err := os.UserHomeDir(); err == nil {
+		default:
 			return filepath.Join(home, ".config", "machinemon", "client.toml")
 		}
 	}
 	return "/etc/machinemon/client.toml"
+}
+
+// realUserHome returns the home directory of the real user, even under sudo.
+func realUserHome() string {
+	// If running under sudo, use the invoking user's home
+	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+		if u, err := user.Lookup(sudoUser); err == nil && u.HomeDir != "" {
+			return u.HomeDir
+		}
+		switch runtime.GOOS {
+		case "darwin":
+			home := filepath.Join("/Users", sudoUser)
+			if _, err := os.Stat(home); err == nil {
+				return home
+			}
+		default:
+			home := filepath.Join("/home", sudoUser)
+			if _, err := os.Stat(home); err == nil {
+				return home
+			}
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return home
+	}
+	return ""
 }

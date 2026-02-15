@@ -37,7 +37,7 @@ func (e *Engine) NotifyCheckIn(clientID string) {
 }
 
 // SendTestAlert dispatches a test alert through a specific provider.
-func (e *Engine) SendTestAlert(providerID int64) error {
+func (e *Engine) SendTestAlert(providerID int64) (*models.TestAlertResult, error) {
 	return e.dispatcher.SendTestAlert(providerID)
 }
 
@@ -309,8 +309,8 @@ func (e *Engine) fireAlert(clientID, alertType, severity, message string) {
 }
 
 func (e *Engine) cleanupOldData() {
-	metricsRetention := 30 * 24 * time.Hour  // 30 days
-	alertsRetention := 90 * 24 * time.Hour   // 90 days
+	metricsRetention := 30 * 24 * time.Hour // 30 days
+	alertsRetention := 90 * 24 * time.Hour  // 90 days
 
 	deleted, err := e.store.PruneOldData(metricsRetention, alertsRetention)
 	if err != nil {

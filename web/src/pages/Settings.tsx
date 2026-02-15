@@ -48,8 +48,14 @@ export default function Settings() {
 
   const handleTestProvider = async (id: number) => {
     try {
-      await testProvider(id);
-      setMessage('Test alert sent');
+      const res = await testProvider(id);
+      if (res.result?.api_response) {
+        setMessage(`${res.result.message}. API: ${res.result.api_response}`);
+      } else if (res.result?.message) {
+        setMessage(res.result.message);
+      } else {
+        setMessage(res.status || 'Test alert sent');
+      }
     } catch (err: any) {
       setMessage(`Test failed: ${err.message}`);
     }

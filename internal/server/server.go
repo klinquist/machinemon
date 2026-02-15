@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/machinemon/machinemon/internal/models"
 	"github.com/machinemon/machinemon/internal/store"
 )
 
@@ -14,7 +15,7 @@ import (
 type AlertNotifier interface {
 	NotifyCheckIn(clientID string)
 	NotifyRestart(clientID, hostname string)
-	SendTestAlert(providerID int64) error
+	SendTestAlert(providerID int64) (*models.TestAlertResult, error)
 }
 
 type Server struct {

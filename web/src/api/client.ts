@@ -1,7 +1,14 @@
-import type { ClientWithMetrics, Client, Metrics, ProcessSnapshot, CheckSnapshot, Alert, Thresholds, AlertProvider } from '../types';
+import type { ClientWithMetrics, Client, Metrics, ProcessSnapshot, CheckSnapshot, Alert, Thresholds, AlertProvider, TestAlertResult } from '../types';
 
-// Relative path so it resolves against <base href> when served under a subpath
-const API_BASE = 'api/v1/admin';
+function normalizeBasePath(path: string): string {
+  if (!path) return '';
+  const trimmed = path.trim().replace(/^\/+|\/+$/g, '');
+  return trimmed ? `/${trimmed}` : '';
+}
+
+// Anchor API calls to the server-injected base path (if any), so calls work from nested routes too.
+const BASE_PATH = normalizeBasePath((window as any).__BASE_PATH__ || '');
+const API_BASE = `${BASE_PATH}/api/v1/admin`;
 
 function getAuthHeaders(): HeadersInit {
   const creds = sessionStorage.getItem('machinemon_auth');
@@ -110,8 +117,8 @@ export async function deleteProvider(id: number): Promise<void> {
   await fetchJSON(`/providers/${id}`, { method: 'DELETE' });
 }
 
-export async function testProvider(id: number): Promise<void> {
-  await fetchJSON(`/providers/${id}/test`, { method: 'POST' });
+export async function testProvider(id: number): Promise<{ status: string; result?: TestAlertResult }> {
+  return fetchJSON(`/providers/${id}/test`, { method: 'POST' });
 }
 
 // Settings

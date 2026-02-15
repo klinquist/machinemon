@@ -124,12 +124,16 @@ func (s *Server) handleTestProvider(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "alert engine not initialized"})
 		return
 	}
-	if err := s.alerts.SendTestAlert(id); err != nil {
+	result, err := s.alerts.SendTestAlert(id)
+	if err != nil {
 		s.logger.Error("test alert failed", "provider_id", id, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "test alert sent"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "test alert sent",
+		"result": result,
+	})
 }
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
@@ -167,7 +171,7 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 type changePasswordRequest struct {
-	Type     string `json:"type"`     // "admin" or "client"
+	Type     string `json:"type"` // "admin" or "client"
 	Password string `json:"password"`
 }
 

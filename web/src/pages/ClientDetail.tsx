@@ -25,10 +25,12 @@ export default function ClientDetail() {
   const [history, setHistory] = useState<Metrics[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [range, setRange] = useState('24h');
 
   const loadData = async () => {
     if (!id) return;
+    setError('');
     try {
       const data = await fetchClient(id);
       setClient(data.client);
@@ -44,8 +46,12 @@ export default function ClientDetail() {
       ]);
       setHistory(historyData);
       setAlerts(alertsData.alerts);
-    } catch {
-      // ignore
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to load client details');
+      }
     } finally {
       setLoading(false);
     }
@@ -66,6 +72,7 @@ export default function ClientDetail() {
   };
 
   if (loading) return <div className="text-gray-500">Loading...</div>;
+  if (error) return <div className="text-red-500">{error}</div>;
   if (!client) return <div className="text-red-500">Client not found</div>;
 
   const chartData = history.map(m => ({

@@ -78,18 +78,21 @@ func (d *Dispatcher) resolveProvider(ap models.AlertProvider) (Provider, error) 
 }
 
 // SendTestAlert sends a test notification through a specific provider.
-func (d *Dispatcher) SendTestAlert(providerID int64) error {
+func (d *Dispatcher) SendTestAlert(providerID int64) (*models.TestAlertResult, error) {
 	ap, err := d.store.GetProvider(providerID)
 	if err != nil {
-		return fmt.Errorf("get provider: %w", err)
+		return nil, fmt.Errorf("get provider: %w", err)
 	}
 	if ap == nil {
-		return fmt.Errorf("provider not found")
+		return nil, fmt.Errorf("provider not found")
 	}
 
 	provider, err := d.resolveProvider(*ap)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if err := provider.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid %s config: %w", ap.Type, err)
 	}
 
 	testAlert := &models.Alert{
@@ -97,5 +100,35 @@ func (d *Dispatcher) SendTestAlert(providerID int64) error {
 		Severity:  models.SeverityInfo,
 		Message:   "This is a test alert from MachineMon.",
 	}
-	return provider.Send(testAlert)
+
+	if p, ok := provider.(*PushoverProvider); ok {
+		sendResult, err := p.send(testAlert)
+		if err != nil {
+			return nil, err
+		}
+
+		msg := fmt.Sprintf("Pushover accepted test alert (HTTP %d", sendResult.HTTPStatusCode)
+		if sendResult.APIStatus != 0 {
+			msg += fmt.Sprintf(", status=%d", sendResult.APIStatus)
+		}
+		if sendResult.RequestID != "" {
+			msg += fmt.Sprintf(", request=%s", sendResult.RequestID)
+		}
+		msg += ")"
+
+		return &models.TestAlertResult{
+			Provider:      ap.Type,
+			Message:       msg,
+			APIStatusCode: sendResult.HTTPStatusCode,
+			APIResponse:   sendResult.RawResponse,
+		}, nil
+	}
+
+	if err := provider.Send(testAlert); err != nil {
+		return nil, err
+	}
+	return &models.TestAlertResult{
+		Provider: ap.Type,
+		Message:  fmt.Sprintf("%s accepted test alert", ap.Type),
+	}, nil
 }

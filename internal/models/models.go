@@ -22,10 +22,10 @@ type CheckInRequest struct {
 // server alerts purely on healthy/unhealthy transitions.
 type CheckPayload struct {
 	FriendlyName string `json:"friendly_name"`
-	CheckType    string `json:"check_type"`        // "script", "http", "file_touch", ...
+	CheckType    string `json:"check_type"` // "script", "http", "file_touch", ...
 	Healthy      bool   `json:"healthy"`
-	Message      string `json:"message,omitempty"`  // human-readable status summary
-	State        string `json:"state,omitempty"`    // JSON blob with type-specific details
+	Message      string `json:"message,omitempty"` // human-readable status summary
+	State        string `json:"state,omitempty"`   // JSON blob with type-specific details
 }
 
 // Well-known check types. New types can be added without changing the server.
@@ -88,15 +88,15 @@ type CheckInResponse struct {
 
 // Client represents a monitored machine.
 type Client struct {
-	ID            string     `json:"id"`
-	Hostname      string     `json:"hostname"`
-	OS            string     `json:"os"`
-	Arch          string     `json:"arch"`
-	ClientVersion string     `json:"client_version"`
-	FirstSeenAt   time.Time  `json:"first_seen_at"`
-	LastSeenAt    time.Time  `json:"last_seen_at"`
-	IsOnline      bool       `json:"is_online"`
-	IsDeleted     bool       `json:"is_deleted,omitempty"`
+	ID            string    `json:"id"`
+	Hostname      string    `json:"hostname"`
+	OS            string    `json:"os"`
+	Arch          string    `json:"arch"`
+	ClientVersion string    `json:"client_version"`
+	FirstSeenAt   time.Time `json:"first_seen_at"`
+	LastSeenAt    time.Time `json:"last_seen_at"`
+	IsOnline      bool      `json:"is_online"`
+	IsDeleted     bool      `json:"is_deleted,omitempty"`
 
 	CPUWarnPct  *float64 `json:"cpu_warn_pct,omitempty"`
 	CPUCritPct  *float64 `json:"cpu_crit_pct,omitempty"`
@@ -170,22 +170,22 @@ type CheckSnapshot struct {
 
 // Alert types.
 const (
-	AlertTypeOffline        = "offline"
-	AlertTypeOnline         = "online"
-	AlertTypePIDChange      = "pid_change"
-	AlertTypeProcessDied    = "process_died"
-	AlertTypeCheckFailed    = "check_failed"
+	AlertTypeOffline         = "offline"
+	AlertTypeOnline          = "online"
+	AlertTypePIDChange       = "pid_change"
+	AlertTypeProcessDied     = "process_died"
+	AlertTypeCheckFailed     = "check_failed"
 	AlertTypeCheckRecovered  = "check_recovered"
 	AlertTypeClientRestarted = "client_restarted"
-	AlertTypeCPUWarn        = "cpu_warn"
-	AlertTypeCPUCrit        = "cpu_crit"
-	AlertTypeCPURecover     = "cpu_recover"
-	AlertTypeMemWarn        = "mem_warn"
-	AlertTypeMemCrit        = "mem_crit"
-	AlertTypeMemRecover     = "mem_recover"
-	AlertTypeDiskWarn       = "disk_warn"
-	AlertTypeDiskCrit       = "disk_crit"
-	AlertTypeDiskRecover    = "disk_recover"
+	AlertTypeCPUWarn         = "cpu_warn"
+	AlertTypeCPUCrit         = "cpu_crit"
+	AlertTypeCPURecover      = "cpu_recover"
+	AlertTypeMemWarn         = "mem_warn"
+	AlertTypeMemCrit         = "mem_crit"
+	AlertTypeMemRecover      = "mem_recover"
+	AlertTypeDiskWarn        = "disk_warn"
+	AlertTypeDiskCrit        = "disk_crit"
+	AlertTypeDiskRecover     = "disk_recover"
 )
 
 // Alert severities.
@@ -216,6 +216,14 @@ type AlertProvider struct {
 	Enabled   bool      `json:"enabled"`
 	Config    string    `json:"config"` // JSON blob
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// TestAlertResult carries delivery details for a provider test-send request.
+type TestAlertResult struct {
+	Provider      string `json:"provider"`
+	Message       string `json:"message"`
+	APIStatusCode int    `json:"api_status_code,omitempty"`
+	APIResponse   string `json:"api_response,omitempty"`
 }
 
 // Thresholds holds warn/crit thresholds for a client.

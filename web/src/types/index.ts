@@ -92,6 +92,13 @@ export interface AlertProvider {
   created_at: string;
 }
 
+export interface TestAlertResult {
+  provider: string;
+  message: string;
+  api_status_code?: number;
+  api_response?: string;
+}
+
 export type AlertType =
   | 'offline' | 'online'
   | 'pid_change' | 'process_died'
