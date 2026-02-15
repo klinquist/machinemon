@@ -104,6 +104,15 @@ If your server uses a self-signed certificate:
 curl -sSL --insecure https://your-server.com/download/install.sh | sh -s -- --insecure
 ```
 
+Upgrade an existing installed client and restart its service if present:
+```bash
+# From the already-installed client (uses configured server_url)
+machinemon-client --upgrade
+
+# Or directly via server install script
+curl -sSL https://your-server.com/download/install.sh | sh -s -- --upgrade
+```
+
 **Then configure and start:**
 
 ```bash
@@ -694,6 +703,9 @@ Useful settings keys:
 ```bash
 # Get install script (auto-detects server URL)
 curl -sSL https://monitor.example.com/download/install.sh | sh
+
+# Upgrade existing client + restart service if installed
+curl -sSL https://monitor.example.com/download/install.sh | sh -s -- --upgrade
 
 # List available binaries
 curl https://monitor.example.com/download/

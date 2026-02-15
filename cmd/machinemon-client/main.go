@@ -1,12 +1,17 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/machinemon/machinemon/internal/client"
@@ -24,6 +29,7 @@ func main() {
 	insecure := flag.Bool("insecure", false, "allow self-signed TLS certificates")
 	serviceInstall := flag.Bool("service-install", false, "install as a system service (auto-detects init system)")
 	serviceUninstall := flag.Bool("service-uninstall", false, "remove the system service")
+	upgrade := flag.Bool("upgrade", false, "upgrade client from configured server and restart service if installed")
 	versionFlag := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -76,6 +82,19 @@ func main() {
 	}
 	if *insecure {
 		cfg.InsecureSkipTLS = true
+	}
+
+	if *upgrade {
+		if strings.TrimSpace(cfg.ServerURL) == "" {
+			logger.Error("upgrade requires server URL in config or --server flag")
+			os.Exit(1)
+		}
+		if err := runUpgrade(cfg, logger); err != nil {
+			logger.Error("upgrade failed", "err", err)
+			os.Exit(1)
+		}
+		logger.Info("upgrade completed")
+		return
 	}
 
 	if *setup {
@@ -209,4 +228,56 @@ func printServiceNextSteps() {
 	default:
 		fmt.Println("  machinemon-client --service-install")
 	}
+}
+
+func runUpgrade(cfg *client.Config, logger *slog.Logger) error {
+	scriptURL := installScriptURL(cfg.ServerURL)
+	logger.Info("downloading installer", "url", scriptURL, "insecure", cfg.InsecureSkipTLS)
+
+	script, err := fetchInstallScript(scriptURL, cfg.InsecureSkipTLS)
+	if err != nil {
+		return err
+	}
+
+	args := []string{"-s", "--", "--upgrade"}
+	if cfg.InsecureSkipTLS {
+		args = append(args, "--insecure")
+	}
+	cmd := exec.Command("sh", args...)
+	cmd.Stdin = strings.NewReader(script)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func installScriptURL(serverURL string) string {
+	base := strings.TrimRight(strings.TrimSpace(serverURL), "/")
+	if strings.HasSuffix(base, "/download") {
+		return base + "/install.sh"
+	}
+	return base + "/download/install.sh"
+}
+
+func fetchInstallScript(scriptURL string, insecure bool) (string, error) {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if insecure {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	clientHTTP := &http.Client{Transport: transport}
+
+	resp, err := clientHTTP.Get(scriptURL)
+	if err != nil {
+		return "", fmt.Errorf("download install script: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("download install script: HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return "", fmt.Errorf("read install script: %w", err)
+	}
+	return string(body), nil
 }

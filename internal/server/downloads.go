@@ -118,15 +118,18 @@ set -e
 # Usage:
 #   curl -sSL %[1]s/download/install.sh | sh
 #   curl -sSL %[1]s/download/install.sh | sh -s -- --insecure   (for self-signed certs)
+#   curl -sSL %[1]s/download/install.sh | sh -s -- --upgrade    (upgrade + restart service)
 
 INSTALL_DIR="/usr/local/bin"
 BINARY="machinemon-client"
 BASE_URL="%[1]s"
 INSECURE=""
+UPGRADE=0
 
 for arg in "$@"; do
     case "$arg" in
         --insecure) INSECURE="--insecure" ;;
+        --upgrade) UPGRADE=1 ;;
     esac
 done
 
@@ -170,6 +173,22 @@ detect_platform() {
     echo "Detected platform: $PLATFORM"
 }
 
+run_privileged() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
+run_launchctl_user() {
+    if [ "$(id -u)" -eq 0 ] && [ -n "$SUDO_USER" ]; then
+        sudo -u "$SUDO_USER" launchctl "$@"
+    else
+        launchctl "$@"
+    fi
+}
+
 download_binary() {
     DOWNLOAD_NAME="${BINARY}-${PLATFORM}"
     URL="${BASE_URL}/download/${DOWNLOAD_NAME}.tar.gz"
@@ -210,6 +229,91 @@ download_binary() {
     echo "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
 }
 
+restart_launchd() {
+    LABEL="com.machinemon.client"
+
+    if [ "$(id -u)" -eq 0 ] && [ -n "$SUDO_USER" ]; then
+        TARGET_UID=$(id -u "$SUDO_USER" 2>/dev/null || true)
+        TARGET_HOME=$(dscl . -read "/Users/${SUDO_USER}" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+        if [ -z "$TARGET_HOME" ]; then
+            TARGET_HOME="/Users/${SUDO_USER}"
+        fi
+    else
+        TARGET_UID=$(id -u)
+        TARGET_HOME="$HOME"
+    fi
+
+    if [ -z "$TARGET_UID" ]; then
+        echo "Warning: could not determine launchd user UID; skipping restart."
+        return 1
+    fi
+
+    DOMAIN="gui/${TARGET_UID}"
+    PLIST="${TARGET_HOME}/Library/LaunchAgents/${LABEL}.plist"
+
+    if run_launchctl_user kickstart -k "${DOMAIN}/${LABEL}" >/dev/null 2>&1; then
+        echo "Restarted launchd service: ${LABEL}"
+        return 0
+    fi
+
+    if [ -f "$PLIST" ]; then
+        run_launchctl_user bootstrap "${DOMAIN}" "$PLIST" >/dev/null 2>&1 || true
+        if run_launchctl_user kickstart -k "${DOMAIN}/${LABEL}" >/dev/null 2>&1; then
+            echo "Started launchd service: ${LABEL}"
+            return 0
+        fi
+    fi
+
+    echo "Could not auto-restart launchd service. Start it manually:"
+    echo "  launchctl bootstrap ${DOMAIN} ${PLIST}"
+    echo "  launchctl kickstart -k ${DOMAIN}/${LABEL}"
+    return 1
+}
+
+restart_service_if_present() {
+    if [ "$OS" = "darwin" ]; then
+        restart_launchd || return 1
+        return 0
+    fi
+
+    if command -v systemctl >/dev/null 2>&1; then
+        if [ -f /etc/systemd/system/machinemon-client.service ] || \
+           [ -f /usr/lib/systemd/system/machinemon-client.service ] || \
+           [ -f /lib/systemd/system/machinemon-client.service ] || \
+           systemctl list-unit-files 2>/dev/null | grep -q '^machinemon-client\.service'; then
+            if run_privileged systemctl restart machinemon-client; then
+                echo "Restarted systemd service: machinemon-client"
+                return 0
+            fi
+        fi
+    fi
+
+    if command -v rc-service >/dev/null 2>&1; then
+        if run_privileged rc-service machinemon-client restart >/dev/null 2>&1; then
+            echo "Restarted OpenRC service: machinemon-client"
+            return 0
+        fi
+    fi
+
+    if command -v service >/dev/null 2>&1; then
+        if run_privileged service machinemon-client restart >/dev/null 2>&1; then
+            echo "Restarted service: machinemon-client"
+            return 0
+        fi
+    fi
+
+    if command -v initctl >/dev/null 2>&1; then
+        if run_privileged restart machinemon-client >/dev/null 2>&1 || run_privileged start machinemon-client >/dev/null 2>&1; then
+            echo "Restarted Upstart job: machinemon-client"
+            return 0
+        fi
+    fi
+
+    echo "No installed service detected (or restart failed)."
+    echo "If needed, restart manually after upgrade."
+    return 1
+}
+
 main() {
     echo "=== MachineMon Client Installer ==="
     echo "Server: %[1]s"
@@ -217,6 +321,15 @@ main() {
 
     detect_platform
     download_binary
+
+    if [ "$UPGRADE" -eq 1 ]; then
+        echo ""
+        echo "Upgrade mode enabled: restarting service if installed..."
+        restart_service_if_present || true
+        echo ""
+        echo "Upgrade complete."
+        exit 0
+    fi
 
     INSECURE_FLAG=""
     if [ -n "$INSECURE" ]; then
