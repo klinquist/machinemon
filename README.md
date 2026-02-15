@@ -6,6 +6,20 @@ MachineMon consists of a **server** (single Go binary with embedded web dashboar
 
 **No external dependencies.** No Docker, no Postgres, no Redis. Just two binaries.
 
+## Screenshots
+
+Dashboard overview:
+
+![MachineMon Dashboard](assets/server1.png)
+
+Dashboard client detail:
+
+![MachineMon Client Detail](assets/server2.png)
+
+Client setup flow:
+
+![MachineMon Client Setup](assets/client1.png)
+
 ## Features
 
 - **System Metrics** — CPU, memory, and disk usage tracked over time with configurable warning/critical thresholds
@@ -523,20 +537,6 @@ Configure notification channels via the web dashboard (Settings page) or the API
   - collapsed by default: per-client thresholds and recent alerts
   - rename client via the pencil icon next to the client name
   - delete a watched process from the server via the process row delete action
-
-### Screenshots
-
-Dashboard overview:
-
-![MachineMon Dashboard](assets/server1.png)
-
-Dashboard client detail:
-
-![MachineMon Client Detail](assets/server2.png)
-
-Client setup flow:
-
-![MachineMon Client Setup](assets/client1.png)
 
 ### Default Thresholds
 
