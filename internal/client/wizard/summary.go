@@ -15,9 +15,17 @@ func runSummary(cfg *client.Config) (bool, error) {
 	fmt.Printf("  │ TLS Skip: %-28v │\n", cfg.InsecureSkipTLS)
 	fmt.Printf("  │ Interval: %-28s │\n", fmt.Sprintf("%d seconds", cfg.CheckInInterval))
 	fmt.Printf("  │ Processes: %-27d │\n", len(cfg.Processes))
+	fmt.Printf("  │ Script checks: %-23d │\n", scriptCheckCount(cfg.Checks))
 
 	for _, p := range cfg.Processes {
 		fmt.Printf("  │   - %-33s │\n", truncate(p.FriendlyName, 33))
+	}
+	for _, check := range scriptCheckEntries(cfg.Checks) {
+		display := check.Check.FriendlyName
+		if check.Check.RunAsUser != "" {
+			display += " as " + check.Check.RunAsUser
+		}
+		fmt.Printf("  │   * %-33s │\n", truncate(display, 33))
 	}
 
 	fmt.Println("  └────────────────────────────────────────┘")

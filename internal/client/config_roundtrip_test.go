@@ -16,6 +16,9 @@ func TestConfigRoundTripProcesses(t *testing.T) {
 		{FriendlyName: "api", MatchPattern: "api.js", MatchType: "substring"},
 		{FriendlyName: "worker", MatchPattern: "worker.js", MatchType: "substring"},
 	}
+	cfg.Checks = []CheckConfig{
+		{FriendlyName: "health", Type: "script", ScriptPath: "curl -sf http://localhost:8080/health", RunAsUser: "www-data"},
+	}
 
 	if err := SaveConfig(cfg, path); err != nil {
 		t.Fatalf("save config: %v", err)
@@ -30,5 +33,11 @@ func TestConfigRoundTripProcesses(t *testing.T) {
 	}
 	if loaded.Processes[0].FriendlyName != "api" || loaded.Processes[0].MatchPattern != "api.js" {
 		t.Fatalf("unexpected process[0]: %+v", loaded.Processes[0])
+	}
+	if got, want := len(loaded.Checks), 1; got != want {
+		t.Fatalf("checks length mismatch: got %d want %d", got, want)
+	}
+	if loaded.Checks[0].RunAsUser != "www-data" {
+		t.Fatalf("unexpected check run_as_user: %+v", loaded.Checks[0])
 	}
 }

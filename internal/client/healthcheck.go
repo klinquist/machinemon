@@ -3,7 +3,13 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/machinemon/machinemon/internal/models"
@@ -50,11 +56,34 @@ func runScriptCheck(check CheckConfig) CheckResult {
 		FriendlyName: check.FriendlyName,
 		CheckType:    models.CheckTypeScript,
 	}
+	script := strings.TrimSpace(check.ScriptPath)
+	if script == "" {
+		result.Healthy = false
+		result.Message = "script command is empty"
+		state, _ := json.Marshal(models.ScriptCheckState{
+			ScriptPath: check.ScriptPath,
+			RunAsUser:  strings.TrimSpace(check.RunAsUser),
+			ExitCode:   -1,
+		})
+		result.State = string(state)
+		return result
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", check.ScriptPath)
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", script)
+	if err := applyRunAsUser(cmd, check.RunAsUser); err != nil {
+		result.Healthy = false
+		result.Message = err.Error()
+		state, _ := json.Marshal(models.ScriptCheckState{
+			ScriptPath: check.ScriptPath,
+			RunAsUser:  strings.TrimSpace(check.RunAsUser),
+			ExitCode:   -1,
+		})
+		result.State = string(state)
+		return result
+	}
 	output, err := cmd.CombinedOutput()
 
 	// Capture last 500 chars of output
@@ -81,12 +110,56 @@ func runScriptCheck(check CheckConfig) CheckResult {
 
 	state, _ := json.Marshal(models.ScriptCheckState{
 		ScriptPath: check.ScriptPath,
+		RunAsUser:  strings.TrimSpace(check.RunAsUser),
 		ExitCode:   exitCode,
 		Output:     outputStr,
 	})
 	result.State = string(state)
 
 	return result
+}
+
+func applyRunAsUser(cmd *exec.Cmd, runAsUser string) error {
+	runAsUser = strings.TrimSpace(runAsUser)
+	if runAsUser == "" {
+		return nil
+	}
+	target, err := lookupUser(runAsUser)
+	if err != nil {
+		return fmt.Errorf("run_as_user %q not found", runAsUser)
+	}
+	if os.Geteuid() != 0 {
+		current, currentErr := user.Current()
+		if currentErr == nil && current.Uid == target.Uid {
+			return nil
+		}
+		return fmt.Errorf("run_as_user %q requires root", runAsUser)
+	}
+	uid, err := strconv.Atoi(target.Uid)
+	if err != nil {
+		return fmt.Errorf("invalid uid for %q", runAsUser)
+	}
+	gid, err := strconv.Atoi(target.Gid)
+	if err != nil {
+		return fmt.Errorf("invalid gid for %q", runAsUser)
+	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{
+			Uid: uint32(uid),
+			Gid: uint32(gid),
+		},
+	}
+	return nil
+}
+
+func lookupUser(name string) (*user.User, error) {
+	if u, err := user.Lookup(name); err == nil {
+		return u, nil
+	}
+	if _, err := strconv.Atoi(name); err == nil {
+		return user.LookupId(name)
+	}
+	return nil, fmt.Errorf("user not found")
 }
 
 // runHTTPCheck performs an HTTP check (placeholder for future implementation).

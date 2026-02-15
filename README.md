@@ -91,7 +91,7 @@ curl -sSL --insecure https://your-server.com/download/install.sh | sh -s -- --in
 **Then configure and start:**
 
 ```bash
-# Interactive setup (asks for server URL, password, picks processes to watch)
+# Interactive setup (configure server settings, monitored processes, and script checks)
 machinemon-client --setup
 
 # Or non-interactive
@@ -268,6 +268,12 @@ script_path = "find /backup -name 'daily-*.tar.gz' -mmin -1440 | grep -q ."
 friendly_name = "Disk SMART"
 type = "script"
 script_path = "/usr/local/bin/check_smart.sh"
+
+[[check]]
+friendly_name = "Nginx Health (www-data)"
+type = "script"
+script_path = "curl -sf http://127.0.0.1/health"
+run_as_user = "www-data"
 ```
 
 ### Reference
@@ -301,6 +307,7 @@ Each `[[check]]` block defines a health check:
 | `friendly_name` | Display name in dashboard and alerts |
 | `type` | Check type: `script` (more types planned) |
 | `script_path` | Shell command or script path (for `script` type) |
+| `run_as_user` | Optional Linux/macOS username for script execution (requires client running as root to switch users) |
 
 **Script checks** run via `/bin/sh -c` with a 30-second timeout. Exit code 0 = healthy, anything else = unhealthy. The last 500 characters of output are captured and stored.
 

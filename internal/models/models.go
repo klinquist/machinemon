@@ -38,6 +38,7 @@ const (
 // ScriptCheckState is the state blob for CheckTypeScript checks.
 type ScriptCheckState struct {
 	ScriptPath string `json:"script_path"`
+	RunAsUser  string `json:"run_as_user,omitempty"`
 	ExitCode   int    `json:"exit_code"`
 	Output     string `json:"output,omitempty"`
 }

@@ -31,6 +31,7 @@ type CheckConfig struct {
 
 	// Script check fields
 	ScriptPath string `toml:"script_path,omitempty"`
+	RunAsUser  string `toml:"run_as_user,omitempty"`
 
 	// HTTP check fields (future)
 	URL            string `toml:"url,omitempty"`

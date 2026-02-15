@@ -42,6 +42,10 @@ func Run(existingConfig *client.Config) (*client.Config, error) {
 			if err := runProcessPicker(cfg); err != nil {
 				return nil, fmt.Errorf("process picker: %w", err)
 			}
+		case "checks":
+			if err := runScriptCheckPicker(cfg); err != nil {
+				return nil, fmt.Errorf("script check picker: %w", err)
+			}
 		case "save":
 			if !cfg.IsConfigured() {
 				fmt.Println("  Server URL and client password are required before saving.")
@@ -67,16 +71,18 @@ func runSetupMenu(cfg *client.Config) (string, error) {
 		serverLabel = "<not set>"
 	}
 	procLabel := fmt.Sprintf("%d process(es)", len(cfg.Processes))
+	checkLabel := fmt.Sprintf("%d script check(s)", scriptCheckCount(cfg.Checks))
 
 	var action string
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Setup menu").
-				Description(fmt.Sprintf("Server: %s | Monitored: %s", truncate(serverLabel, 36), procLabel)).
+				Description(fmt.Sprintf("Server: %s | Processes: %s | Scripts: %s", truncate(serverLabel, 26), procLabel, checkLabel)).
 				Options(
 					huh.NewOption("Configure server settings", "server"),
 					huh.NewOption("Configure monitored processes", "processes"),
+					huh.NewOption("Configure script checks", "checks"),
 					huh.NewOption("Save and exit", "save"),
 					huh.NewOption("Cancel setup", "cancel"),
 				).
