@@ -31,10 +31,11 @@ func (s *Server) handleCheckIn(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("failed to insert metrics", "client_id", clientID, "err", err)
 	}
 
+	// Always sync watched processes so removed processes stop being monitored.
+	if err := s.store.UpsertWatchedProcesses(clientID, req.Processes); err != nil {
+		s.logger.Error("failed to upsert watched processes", "client_id", clientID, "err", err)
+	}
 	if len(req.Processes) > 0 {
-		if err := s.store.UpsertWatchedProcesses(clientID, req.Processes); err != nil {
-			s.logger.Error("failed to upsert watched processes", "client_id", clientID, "err", err)
-		}
 		if err := s.store.InsertProcessSnapshots(clientID, req.Processes); err != nil {
 			s.logger.Error("failed to insert process snapshots", "client_id", clientID, "err", err)
 		}

@@ -346,8 +346,34 @@ func (s *SQLiteStore) GetMetrics(clientID string, from, to time.Time, limit int)
 // --- Process tracking ---
 
 func (s *SQLiteStore) UpsertWatchedProcesses(clientID string, procs []models.ProcessPayload) error {
+	// If the client sends no watched processes, clear them all.
+	if len(procs) == 0 {
+		_, err := s.db.Exec(`DELETE FROM watched_processes WHERE client_id = ?`, clientID)
+		return err
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Remove processes no longer configured by the client.
+	placeholders := make([]string, len(procs))
+	args := make([]interface{}, 0, len(procs)+1)
+	args = append(args, clientID)
+	for i, p := range procs {
+		placeholders[i] = "?"
+		args = append(args, p.FriendlyName)
+	}
+	deleteSQL := fmt.Sprintf(`DELETE FROM watched_processes
+		WHERE client_id = ? AND friendly_name NOT IN (%s)`, strings.Join(placeholders, ","))
+	if _, err := tx.Exec(deleteSQL, args...); err != nil {
+		return fmt.Errorf("delete stale watched processes: %w", err)
+	}
+
 	for _, p := range procs {
-		_, err := s.db.Exec(`INSERT INTO watched_processes (client_id, friendly_name, match_pattern, match_type)
+		_, err := tx.Exec(`INSERT INTO watched_processes (client_id, friendly_name, match_pattern, match_type)
 			VALUES (?, ?, ?, 'substring')
 			ON CONFLICT(client_id, friendly_name) DO UPDATE SET match_pattern = excluded.match_pattern`,
 			clientID, p.FriendlyName, p.MatchPattern)
@@ -355,7 +381,7 @@ func (s *SQLiteStore) UpsertWatchedProcesses(clientID string, procs []models.Pro
 			return fmt.Errorf("upsert watched process %q: %w", p.FriendlyName, err)
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) InsertProcessSnapshots(clientID string, procs []models.ProcessPayload) error {
