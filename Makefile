@@ -50,7 +50,7 @@ lint:
 release: all
 	cd dist && for f in machinemon-client-* machinemon-server-*; do \
 		case "$$f" in *.tar.gz) continue ;; esac; \
-		tar -czf "$$f.tar.gz" "$$f"; \
+		COPYFILE_DISABLE=1 tar -czf "$$f.tar.gz" "$$f"; \
 	done
 	cd dist && shasum -a 256 *.tar.gz > checksums.txt
 

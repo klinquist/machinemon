@@ -96,7 +96,9 @@ download_binary() {
 
 # Install systemd service (Linux)
 install_systemd_service() {
-    if [ ! -d /etc/systemd/system ]; then
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo "Systemd not found — skipping service installation."
+        echo "You can run the server manually: machinemon-server"
         return
     fi
 
