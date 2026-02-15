@@ -264,22 +264,22 @@ export default function ClientDetail() {
       )}
 
       {/* Chart */}
-      {chartData.length > 0 && (
-        <div className="bg-white rounded-lg border p-4 mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-700">History</h2>
-            <div className="flex gap-1">
-              {['1h', '6h', '24h', '7d', '14d'].map(r => (
-                <button
-                  key={r}
-                  onClick={() => setRange(r)}
-                  className={`px-2 py-1 text-xs rounded ${range === r ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
+      <div className="bg-white rounded-lg border p-4 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-gray-700">History</h2>
+          <div className="flex gap-1">
+            {['1h', '6h', '24h', '7d', '14d'].map(r => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`px-2 py-1 text-xs rounded ${range === r ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+              >
+                {r}
+              </button>
+            ))}
           </div>
+        </div>
+        {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -291,8 +291,10 @@ export default function ClientDetail() {
               <Area type="monotone" dataKey="disk" stroke="#f59e0b" fill="#fcd34d" fillOpacity={0.3} name="Disk %" />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
-      )}
+        ) : (
+          <p className="text-sm text-gray-400 py-6">No history yet for this range.</p>
+        )}
+      </div>
 
       {/* Checks */}
       {checks.length > 0 && (

@@ -321,10 +321,15 @@ func (s *SQLiteStore) GetMetrics(clientID string, from, to time.Time, limit int)
 	if limit <= 0 {
 		limit = 500
 	}
+	fromUTC := from.UTC().Format("2006-01-02 15:04:05")
+	toUTC := to.UTC().Format("2006-01-02 15:04:05")
 	rows, err := s.db.Query(`SELECT id, client_id, recorded_at, cpu_pct, mem_pct, disk_pct,
 		mem_total_bytes, mem_used_bytes, disk_total_bytes, disk_used_bytes
-		FROM metrics WHERE client_id = ? AND recorded_at >= ? AND recorded_at <= ?
-		ORDER BY recorded_at ASC LIMIT ?`, clientID, from, to, limit)
+		FROM metrics
+		WHERE client_id = ?
+			AND datetime(recorded_at) >= datetime(?)
+			AND datetime(recorded_at) <= datetime(?)
+		ORDER BY recorded_at ASC LIMIT ?`, clientID, fromUTC, toUTC, limit)
 	if err != nil {
 		return nil, err
 	}
