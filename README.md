@@ -679,44 +679,45 @@ Config files and database are preserved by default. Remove them manually if desi
 
 ## Architecture
 
-```
-                    ┌─────────────────────────────────────┐
-                    │         MachineMon Server            │
-                    │                                      │
-                    │  ┌────────────┐  ┌──────────────┐   │
-                    │  │ React SPA  │  │  Chi Router   │   │
-                    │  │ (embedded) │  │  /api/v1/...  │   │
-                    │  └─────┬──────┘  └──────┬────────┘   │
-                    │        │                │            │
-                    │  ┌─────┴────────────────┴────────┐  │
-                    │  │       Alert Engine              │  │
-                    │  │  Offline detection (30s loop)   │  │
-                    │  │  Threshold hysteresis           │  │
-                    │  │  Process state tracking         │  │
-                    │  │  Check failure detection        │  │
-                    │  └─────┬──────────────────────────┘  │
-                    │        │                             │
-                    │  ┌─────┴──────┐  ┌───────────────┐  │
-                    │  │  SQLite    │  │  Dispatcher    │  │
-                    │  │  (single   │  │  → Twilio      │  │
-                    │  │   file DB) │  │  → Pushover    │  │
-                    │  └────────────┘  │  → SMTP        │  │
-                    │                  └───────────────┘  │
-                    └────────────┬─────────────────────────┘
-                                │
-               HTTPS POST /api/v1/checkin (every 2 min)
-                                │
-            ┌───────────────────┼───────────────────┐
-            │                   │                   │
-     ┌──────┴──────┐    ┌──────┴──────┐    ┌──────┴──────┐
-     │  Client      │    │  Client      │    │  Client      │
-     │  Pi Zero     │    │  Ubuntu VM   │    │  Mac Mini    │
-     │  (ARMv6)     │    │  (x86_64)    │    │  (ARM64)     │
-     │              │    │              │    │              │
-     │  Metrics     │    │  Metrics     │    │  Metrics     │
-     │  Processes   │    │  Processes   │    │  Processes   │
-     │  Checks      │    │  Checks      │    │  Checks      │
-     └─────────────┘    └─────────────┘    └─────────────┘
+```text
++------------------------------------------------------------+
+|                     MachineMon Server                      |
+|                                                            |
+|  +------------+   +--------------+                         |
+|  | React SPA  |   | Chi Router   |                         |
+|  | (embedded) |   | /api/v1/...  |                         |
+|  +------+-----+   +------+-------+                         |
+|         |                |                                 |
+|         +----------------+                                 |
+|                  |                                         |
+|          +-------v------------------------------+          |
+|          |             Alert Engine             |          |
+|          |  Offline detection (30s loop)        |          |
+|          |  Threshold hysteresis                |          |
+|          |  Process state tracking              |          |
+|          |  Check failure detection             |          |
+|          +-------+----------------------+-------+          |
+|                  |                      |                  |
+|      +-----------v------+    +----------v----------+       |
+|      | SQLite (single   |    | Dispatcher          |       |
+|      | file DB)         |    | -> Twilio           |       |
+|      +------------------+    | -> Pushover         |       |
+|                              | -> SMTP             |       |
+|                              +---------------------+       |
++---------------------------+--------------------------------+
+                            |
+          HTTPS POST /api/v1/checkin (every 2 min)
+                            |
+              +-------------+-------------+
+              |             |             |
+      +-------v------+ +----v-------+ +---v--------+
+      | Client       | | Client     | | Client     |
+      | Pi Zero      | | Ubuntu VM  | | Mac Mini   |
+      | (ARMv6)      | | (x86_64)   | | (ARM64)    |
+      | Metrics      | | Metrics    | | Metrics    |
+      | Processes    | | Processes  | | Processes  |
+      | Checks       | | Checks     | | Checks     |
+      +--------------+ +------------+ +------------+
 ```
 
 ### Key Design Decisions
