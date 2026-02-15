@@ -348,8 +348,18 @@ func (s *SQLiteStore) GetMetrics(clientID string, from, to time.Time, limit int)
 func (s *SQLiteStore) UpsertWatchedProcesses(clientID string, procs []models.ProcessPayload) error {
 	// If the client sends no watched processes, clear them all.
 	if len(procs) == 0 {
-		_, err := s.db.Exec(`DELETE FROM watched_processes WHERE client_id = ?`, clientID)
-		return err
+		tx, err := s.db.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if _, err := tx.Exec(`DELETE FROM watched_processes WHERE client_id = ?`, clientID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM process_snapshots WHERE client_id = ?`, clientID); err != nil {
+			return err
+		}
+		return tx.Commit()
 	}
 
 	tx, err := s.db.Begin()
@@ -370,6 +380,11 @@ func (s *SQLiteStore) UpsertWatchedProcesses(clientID string, procs []models.Pro
 		WHERE client_id = ? AND friendly_name NOT IN (%s)`, strings.Join(placeholders, ","))
 	if _, err := tx.Exec(deleteSQL, args...); err != nil {
 		return fmt.Errorf("delete stale watched processes: %w", err)
+	}
+	deleteSnapshotsSQL := fmt.Sprintf(`DELETE FROM process_snapshots
+		WHERE client_id = ? AND friendly_name NOT IN (%s)`, strings.Join(placeholders, ","))
+	if _, err := tx.Exec(deleteSnapshotsSQL, args...); err != nil {
+		return fmt.Errorf("delete stale process snapshots: %w", err)
 	}
 
 	for _, p := range procs {
@@ -418,10 +433,13 @@ func (s *SQLiteStore) GetLatestProcessSnapshots(clientID string) ([]models.Proce
 	rows, err := s.db.Query(`SELECT ps.id, ps.client_id, ps.friendly_name, ps.recorded_at,
 		ps.is_running, ps.pid, ps.cpu_pct, ps.mem_pct, ps.cmdline
 		FROM process_snapshots ps
+		INNER JOIN watched_processes wp ON wp.client_id = ps.client_id AND wp.friendly_name = ps.friendly_name
 		INNER JOIN (
-			SELECT friendly_name, MAX(recorded_at) as max_time
-			FROM process_snapshots WHERE client_id = ?
-			GROUP BY friendly_name
+			SELECT ps2.friendly_name, MAX(ps2.recorded_at) as max_time
+			FROM process_snapshots ps2
+			INNER JOIN watched_processes wp2 ON wp2.client_id = ps2.client_id AND wp2.friendly_name = ps2.friendly_name
+			WHERE ps2.client_id = ?
+			GROUP BY ps2.friendly_name
 		) latest ON ps.friendly_name = latest.friendly_name AND ps.recorded_at = latest.max_time
 		WHERE ps.client_id = ?`, clientID, clientID)
 	if err != nil {
@@ -436,13 +454,17 @@ func (s *SQLiteStore) GetPreviousProcessSnapshots(clientID string) ([]models.Pro
 	rows, err := s.db.Query(`SELECT ps.id, ps.client_id, ps.friendly_name, ps.recorded_at,
 		ps.is_running, ps.pid, ps.cpu_pct, ps.mem_pct, ps.cmdline
 		FROM process_snapshots ps
+		INNER JOIN watched_processes wp ON wp.client_id = ps.client_id AND wp.friendly_name = ps.friendly_name
 		INNER JOIN (
-			SELECT friendly_name, MAX(recorded_at) as max_time
-			FROM process_snapshots
-			WHERE client_id = ? AND recorded_at < (
-				SELECT MAX(recorded_at) FROM process_snapshots WHERE client_id = ?
+			SELECT ps2.friendly_name, MAX(ps2.recorded_at) as max_time
+			FROM process_snapshots ps2
+			INNER JOIN watched_processes wp2 ON wp2.client_id = ps2.client_id AND wp2.friendly_name = ps2.friendly_name
+			WHERE ps2.client_id = ? AND ps2.recorded_at < (
+				SELECT MAX(ps3.recorded_at) FROM process_snapshots ps3
+				INNER JOIN watched_processes wp3 ON wp3.client_id = ps3.client_id AND wp3.friendly_name = ps3.friendly_name
+				WHERE ps3.client_id = ?
 			)
-			GROUP BY friendly_name
+			GROUP BY ps2.friendly_name
 		) prev ON ps.friendly_name = prev.friendly_name AND ps.recorded_at = prev.max_time
 		WHERE ps.client_id = ?`, clientID, clientID, clientID)
 	if err != nil {
