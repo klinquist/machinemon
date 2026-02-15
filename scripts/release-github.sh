@@ -212,10 +212,13 @@ if [[ "$DO_UPLOAD" -eq 1 ]]; then
     dist/checksums.txt
   )
 
-  if gh release view "$TAG" >/dev/null 2>&1; then
+  if retry_cmd 3 gh release view "$TAG" >/dev/null 2>&1; then
     retry_cmd 3 gh release upload "$TAG" "${assets[@]}" --clobber
   else
-    retry_cmd 3 gh release create "$TAG" "${assets[@]}" --target "$COMMIT" --title "$TAG" --generate-notes
+    echo "Could not confirm whether tag ${TAG} release exists; trying upload first."
+    if ! retry_cmd 2 gh release upload "$TAG" "${assets[@]}" --clobber; then
+      retry_cmd 3 gh release create "$TAG" "${assets[@]}" --target "$COMMIT" --title "$TAG" --generate-notes
+    fi
   fi
 fi
 
