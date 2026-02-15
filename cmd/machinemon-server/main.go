@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -215,6 +216,11 @@ func runSetup(cfg *server.Config, configPath string) error {
 		fmt.Scanln(&extURL)
 		if extURL != "" {
 			cfg.ExternalURL = extURL
+			// Auto-detect base_path from URL path
+			if u, err := url.Parse(extURL); err == nil && u.Path != "" && u.Path != "/" {
+				cfg.BasePath = strings.TrimRight(u.Path, "/")
+				fmt.Printf("Auto-detected base_path: %s\n", cfg.BasePath)
+			}
 		}
 	}
 
