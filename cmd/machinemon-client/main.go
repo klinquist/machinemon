@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/charmbracelet/huh"
 	"github.com/machinemon/machinemon/internal/client"
 	"github.com/machinemon/machinemon/internal/client/wizard"
 	"github.com/machinemon/machinemon/internal/service"
@@ -80,6 +81,35 @@ func main() {
 			os.Exit(1)
 		}
 		logger.Info("config saved", "path", *configPath)
+
+		// If the client is already running as a service, restart that service so it
+		// picks up the new config, instead of launching another interactive daemon.
+		if !*noDaemon {
+			if running, err := service.IsRunning("machinemon-client"); err != nil {
+				logger.Warn("could not determine service status", "err", err)
+			} else if running {
+				var restartService bool
+				form := huh.NewForm(
+					huh.NewGroup(
+						huh.NewConfirm().
+							Title("MachineMon client service is already running. Restart it now to apply this configuration?").
+							Value(&restartService),
+					),
+				)
+				if err := form.Run(); err != nil {
+					logger.Error("prompt failed", "err", err)
+					os.Exit(1)
+				}
+				if restartService {
+					if err := service.Restart("machinemon-client"); err != nil {
+						logger.Error("failed to restart service", "err", err)
+						os.Exit(1)
+					}
+					logger.Info("service restarted", "service", "machinemon-client")
+				}
+				return
+			}
+		}
 	}
 
 	if !cfg.IsConfigured() {

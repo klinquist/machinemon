@@ -27,7 +27,7 @@ func runSummary(cfg *client.Config) error {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title("Save this configuration and start monitoring?").
+				Title("Save this configuration?").
 				Value(&confirmed),
 		),
 	)

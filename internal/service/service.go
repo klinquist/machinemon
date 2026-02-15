@@ -99,6 +99,84 @@ func Uninstall(name string) error {
 	}
 }
 
+// IsRunning reports whether a service appears to be running under the detected init system.
+func IsRunning(name string) (bool, error) {
+	initSys := Detect()
+	switch initSys {
+	case Systemd:
+		cmd := exec.Command("systemctl", "is-active", "--quiet", name)
+		if err := cmd.Run(); err != nil {
+			if _, ok := err.(*exec.ExitError); ok {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	case SysVInit:
+		cmd := exec.Command("service", name, "status")
+		if err := cmd.Run(); err != nil {
+			if _, ok := err.(*exec.ExitError); ok {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	case OpenRC:
+		cmd := exec.Command("rc-service", name, "status")
+		if err := cmd.Run(); err != nil {
+			if _, ok := err.(*exec.ExitError); ok {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	case Upstart:
+		out, err := exec.Command("status", name).CombinedOutput()
+		if err != nil {
+			if _, ok := err.(*exec.ExitError); ok {
+				return false, nil
+			}
+			return false, err
+		}
+		return strings.Contains(string(out), "start/running"), nil
+	case Launchd:
+		label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
+		out, err := exec.Command("launchctl", "list", label).CombinedOutput()
+		if err != nil {
+			if _, ok := err.(*exec.ExitError); ok {
+				return false, nil
+			}
+			return false, err
+		}
+		return strings.Contains(string(out), label), nil
+	default:
+		return false, nil
+	}
+}
+
+// Restart restarts the service under the detected init system.
+func Restart(name string) error {
+	initSys := Detect()
+	switch initSys {
+	case Systemd:
+		return runPrivileged("systemctl", "restart", name)
+	case SysVInit:
+		return runPrivileged("service", name, "restart")
+	case OpenRC:
+		return runPrivileged("rc-service", name, "restart")
+	case Upstart:
+		return runPrivileged("restart", name)
+	case Launchd:
+		label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
+		home, _ := os.UserHomeDir()
+		path := filepath.Join(home, "Library", "LaunchAgents", label+".plist")
+		_ = exec.Command("launchctl", "unload", path).Run()
+		return exec.Command("launchctl", "load", path).Run()
+	default:
+		return fmt.Errorf("could not detect init system")
+	}
+}
+
 // execLine builds the command line for service files.
 func execLine(binPath, configPath string) string {
 	if configPath != "" {
