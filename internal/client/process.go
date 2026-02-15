@@ -1,6 +1,7 @@
 package client
 
 import (
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -133,35 +134,70 @@ func processSearchText(p *process.Process) (string, bool) {
 // SuggestMatchPattern returns a good match pattern for a process.
 // For Node.js processes, uses the script path instead of just "node".
 func SuggestMatchPattern(candidate ProcessCandidate) string {
-	name := strings.ToLower(candidate.Name)
-	if name == "node" || name == "nodejs" {
-		// For Node.js, use the script path from the cmdline
-		parts := strings.Fields(candidate.Cmdline)
-		for _, part := range parts[1:] {
-			if !strings.HasPrefix(part, "-") {
-				return part // First non-flag argument is typically the script
-			}
+	if isNodeProcess(candidate) {
+		if script := nodeScriptArg(candidate.Cmdline); script != "" {
+			// Match on node + script path so we disambiguate different node apps.
+			return "node " + script
 		}
 	}
-	return candidate.Name
+	name := canonicalProcessName(candidate)
+	if name != "" {
+		return name
+	}
+	return strings.TrimSpace(candidate.Cmdline)
 }
 
 // SuggestFriendlyName returns a suggested friendly name for a process.
 func SuggestFriendlyName(candidate ProcessCandidate) string {
-	name := strings.ToLower(candidate.Name)
-	if name == "node" || name == "nodejs" {
-		parts := strings.Fields(candidate.Cmdline)
-		for _, part := range parts[1:] {
-			if !strings.HasPrefix(part, "-") {
-				// Use the script filename without extension
-				segments := strings.Split(part, "/")
-				scriptName := segments[len(segments)-1]
-				scriptName = strings.TrimSuffix(scriptName, ".js")
-				scriptName = strings.TrimSuffix(scriptName, ".mjs")
-				scriptName = strings.TrimSuffix(scriptName, ".cjs")
+	if isNodeProcess(candidate) {
+		if script := nodeScriptArg(candidate.Cmdline); script != "" {
+			scriptName := filepath.Base(script)
+			scriptName = strings.TrimSuffix(scriptName, ".js")
+			scriptName = strings.TrimSuffix(scriptName, ".mjs")
+			scriptName = strings.TrimSuffix(scriptName, ".cjs")
+			if scriptName != "" {
 				return scriptName
 			}
 		}
 	}
-	return candidate.Name
+	if name := canonicalProcessName(candidate); name != "" {
+		return name
+	}
+	return strings.TrimSpace(candidate.Cmdline)
+}
+
+func canonicalProcessName(candidate ProcessCandidate) string {
+	name := strings.TrimSpace(candidate.Name)
+	if name != "" && !strings.Contains(name, " ") {
+		return name
+	}
+	parts := strings.Fields(candidate.Cmdline)
+	if len(parts) == 0 {
+		return name
+	}
+	base := filepath.Base(parts[0])
+	base = strings.TrimSpace(base)
+	if base != "" {
+		return base
+	}
+	return name
+}
+
+func isNodeProcess(candidate ProcessCandidate) bool {
+	name := strings.ToLower(strings.TrimSpace(canonicalProcessName(candidate)))
+	return name == "node" || name == "nodejs"
+}
+
+func nodeScriptArg(cmdline string) string {
+	parts := strings.Fields(cmdline)
+	for i, part := range parts {
+		if i == 0 {
+			continue
+		}
+		if strings.HasPrefix(part, "-") {
+			continue
+		}
+		return part
+	}
+	return ""
 }
