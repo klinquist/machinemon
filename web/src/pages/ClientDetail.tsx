@@ -271,36 +271,39 @@ export default function ClientDetail() {
       {/* Metrics (top section) */}
       {metrics && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <MetricGauge label="CPU" value={metrics.cpu_pct} size="lg" />
-          <MetricGauge label="Memory" value={metrics.mem_pct} size="lg" unit={`% (${formatBytes(metrics.mem_used_bytes)}/${formatBytes(metrics.mem_total_bytes)})`} />
-          <MetricGauge label="Disk" value={metrics.disk_pct} size="lg" unit={`% (${formatBytes(metrics.disk_used_bytes)}/${formatBytes(metrics.disk_total_bytes)})`} />
-        </div>
-      )}
-
-      <div className="bg-white rounded-lg border p-4 mb-6">
-        <h2 className="font-semibold text-gray-700 mb-3">Scoped Alert Mutes</h2>
-        <div className="flex flex-wrap gap-2">
           {[
-            { scope: 'cpu' as const, label: 'CPU' },
-            { scope: 'memory' as const, label: 'Memory' },
-            { scope: 'disk' as const, label: 'Disk' },
+            {
+              scope: 'cpu' as const,
+              label: 'CPU',
+              gauge: <MetricGauge label="CPU" value={metrics.cpu_pct} size="lg" />,
+            },
+            {
+              scope: 'memory' as const,
+              label: 'Memory',
+              gauge: <MetricGauge label="Memory" value={metrics.mem_pct} size="lg" unit={`% (${formatBytes(metrics.mem_used_bytes)}/${formatBytes(metrics.mem_total_bytes)})`} />,
+            },
+            {
+              scope: 'disk' as const,
+              label: 'Disk',
+              gauge: <MetricGauge label="Disk" value={metrics.disk_pct} size="lg" unit={`% (${formatBytes(metrics.disk_used_bytes)}/${formatBytes(metrics.disk_total_bytes)})`} />,
+            },
           ].map(item => {
             const muted = isScopedMuted(item.scope);
             return (
-              <button
-                key={item.scope}
-                onClick={() => handleToggleScopedMute(item.scope)}
-                className={`px-3 py-1.5 rounded text-sm border ${muted ? 'bg-gray-100 text-gray-700 border-gray-300' : 'hover:bg-gray-50 text-gray-600 border-gray-200'}`}
-              >
-                {muted ? `Unmute ${item.label}` : `Mute ${item.label}`}
-              </button>
+              <div key={item.scope} className="relative">
+                {item.gauge}
+                <button
+                  onClick={() => handleToggleScopedMute(item.scope)}
+                  className="absolute top-2 right-2 p-1 rounded bg-white/90 border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  title={muted ? `Unmute ${item.label} alerts` : `Mute ${item.label} alerts`}
+                >
+                  {muted ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                </button>
+              </div>
             );
           })}
         </div>
-        <p className="text-xs text-gray-400 mt-2">
-          Per-process and per-check mute controls are available in each row below.
-        </p>
-      </div>
+      )}
 
       {/* Watched Processes + Checks (second section) */}
       {(processes.length > 0 || checks.length > 0) && (
