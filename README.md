@@ -68,10 +68,10 @@ If you want to install clients with a one-liner, put the pre-built client binari
 make prepare-binaries
 
 # Copy to your server's binaries directory
-scp binaries/*.tar.gz you@server:/var/lib/machinemon/binaries/
+scp binaries/*.tar.gz you@server:~/.local/share/machinemon/binaries/
 ```
 
-The default `binaries_dir` location depends on your OS — check `server.toml` or see [Server Configuration](#server-configuration).
+The default `binaries_dir` is `~/.local/share/machinemon/binaries` on Linux and `~/Library/Application Support/MachineMon/binaries` on macOS.
 
 ### 3. Install a Client
 
@@ -179,8 +179,8 @@ Config file location:
 listen_addr = "0.0.0.0:8080"
 external_url = "https://monitor.example.com"  # public URL (set when behind reverse proxy)
 base_path = ""                                 # URL subpath (e.g. "/machinemon") for subpath deployments
-database_path = "/var/lib/machinemon/machinemon.db"
-binaries_dir = "/var/lib/machinemon/binaries"
+database_path = "~/.local/share/machinemon/machinemon.db"
+binaries_dir = "~/.local/share/machinemon/binaries"
 
 # TLS: "none", "autocert", "selfsigned", "manual"
 tls_mode = "none"
@@ -205,8 +205,8 @@ dev_proxy_url = "http://localhost:5173"
 | `listen_addr` | Bind address (host:port) | `:8080` |
 | `external_url` | Public URL for reverse proxy setups (e.g. `https://monitor.example.com`) | — |
 | `base_path` | URL subpath prefix (e.g. `/machinemon`) for serving behind a subpath | — |
-| `database_path` | SQLite database file path | OS-specific |
-| `binaries_dir` | Directory containing client `.tar.gz` files for download | OS-specific |
+| `database_path` | SQLite database file path | `~/.local/share/machinemon/machinemon.db` |
+| `binaries_dir` | Directory containing client `.tar.gz` files for download | `~/.local/share/machinemon/binaries` |
 | `tls_mode` | `none`, `autocert`, `selfsigned`, or `manual` | `none` |
 | `domain` | Domain for Let's Encrypt autocert | — |
 | `cert_file` | Path to TLS certificate (manual mode) | — |
@@ -646,7 +646,7 @@ After building, package the client binaries for your server to serve:
 make prepare-binaries
 
 # Copy to your server
-scp binaries/*.tar.gz you@server:/var/lib/machinemon/binaries/
+scp binaries/*.tar.gz you@server:~/.local/share/machinemon/binaries/
 
 # Verify (from any machine)
 curl https://your-server.com/download/
