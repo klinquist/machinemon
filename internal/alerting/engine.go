@@ -56,6 +56,8 @@ func (e *Engine) Run(ctx context.Context) {
 	defer cleanupTicker.Stop()
 
 	e.logger.Info("alert engine started")
+	// Run cleanup once at startup so stale data is pruned immediately.
+	e.cleanupOldData()
 
 	for {
 		select {
@@ -318,8 +320,14 @@ func (e *Engine) cleanupOldData() {
 			metricsRetentionDays = days
 		}
 	}
+	alertsRetentionDays := metricsRetentionDays // default: follow global data retention
+	if v, _ := e.store.GetSetting("alerts_retention_days"); v != "" {
+		if days, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && days > 0 {
+			alertsRetentionDays = days
+		}
+	}
 	metricsRetention := time.Duration(metricsRetentionDays) * 24 * time.Hour
-	alertsRetention := 90 * 24 * time.Hour // 90 days
+	alertsRetention := time.Duration(alertsRetentionDays) * 24 * time.Hour
 
 	deleted, err := e.store.PruneOldData(metricsRetention, alertsRetention)
 	if err != nil {
@@ -327,7 +335,10 @@ func (e *Engine) cleanupOldData() {
 		return
 	}
 	if deleted > 0 {
-		e.logger.Info("pruned old data", "rows_deleted", deleted, "metrics_retention_days", metricsRetentionDays)
+		e.logger.Info("pruned old data",
+			"rows_deleted", deleted,
+			"metrics_retention_days", metricsRetentionDays,
+			"alerts_retention_days", alertsRetentionDays)
 	}
 }
 

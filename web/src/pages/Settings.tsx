@@ -173,7 +173,7 @@ export default function Settings() {
             placeholder="14"
           />
           <p className="text-xs text-gray-500 mt-1">
-            CPU, memory, disk, process, and check history older than this is automatically deleted daily.
+            CPU, memory, disk, process, check, and alert history older than this is automatically deleted daily.
           </p>
         </div>
         <button onClick={handleSaveThresholds} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
