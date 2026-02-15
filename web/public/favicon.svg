@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MachineMon server icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#155e75"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <rect x="12" y="10" width="40" height="16" rx="4" fill="#e6fffb"/>
+  <rect x="12" y="28" width="40" height="16" rx="4" fill="#ccfbf1"/>
+  <rect x="12" y="46" width="40" height="8" rx="4" fill="#99f6e4"/>
+  <circle cx="18" cy="18" r="2.2" fill="#0f766e"/>
+  <circle cx="18" cy="36" r="2.2" fill="#0f766e"/>
+  <circle cx="18" cy="50" r="1.8" fill="#0f766e"/>
+  <rect x="24" y="16.5" width="23" height="3" rx="1.5" fill="#0f766e" opacity="0.9"/>
+  <rect x="24" y="34.5" width="23" height="3" rx="1.5" fill="#0f766e" opacity="0.9"/>
+  <rect x="24" y="49" width="23" height="2.4" rx="1.2" fill="#0f766e" opacity="0.9"/>
+</svg>
