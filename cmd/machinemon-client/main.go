@@ -231,6 +231,13 @@ func printServiceNextSteps() {
 }
 
 func runUpgrade(cfg *client.Config, logger *slog.Logger) error {
+	wasRunning := false
+	if running, err := service.IsRunning("machinemon-client"); err != nil {
+		logger.Warn("could not determine service status before upgrade", "err", err)
+	} else {
+		wasRunning = running
+	}
+
 	scriptURL := installScriptURL(cfg.ServerURL)
 	logger.Info("downloading installer", "url", scriptURL, "insecure", cfg.InsecureSkipTLS)
 
@@ -247,7 +254,20 @@ func runUpgrade(cfg *client.Config, logger *slog.Logger) error {
 	cmd.Stdin = strings.NewReader(script)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	// Compatibility fallback: older server install scripts may ignore --upgrade
+	// and not restart the existing service.
+	if wasRunning {
+		logger.Info("restarting running service after upgrade", "service", "machinemon-client")
+		if err := service.Restart("machinemon-client"); err != nil {
+			return fmt.Errorf("restart service after upgrade: %w", err)
+		}
+		logger.Info("service restarted", "service", "machinemon-client")
+	}
+	return nil
 }
 
 func installScriptURL(serverURL string) string {
