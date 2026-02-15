@@ -524,6 +524,20 @@ Configure notification channels via the web dashboard (Settings page) or the API
   - rename client via the pencil icon next to the client name
   - delete a watched process from the server via the process row delete action
 
+### Screenshots
+
+Dashboard overview:
+
+![MachineMon Dashboard](assets/server1.png)
+
+Dashboard client detail:
+
+![MachineMon Client Detail](assets/server2.png)
+
+Client setup flow:
+
+![MachineMon Client Setup](assets/client1.png)
+
 ### Default Thresholds
 
 | Metric | Warning | Critical |
