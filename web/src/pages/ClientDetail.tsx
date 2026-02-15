@@ -239,15 +239,16 @@ export default function ClientDetail() {
         </div>
       )}
 
-      {/* Watched Processes (second section) */}
-      {processes.length > 0 && (
+      {/* Watched Processes + Checks (second section) */}
+      {(processes.length > 0 || checks.length > 0) && (
         <div className="bg-white rounded-lg border p-4 mb-6">
-          <h2 className="font-semibold text-gray-700 mb-3">Watched Processes</h2>
+          <h2 className="font-semibold text-gray-700 mb-3">Watched Processes &amp; Checks</h2>
           <div className="overflow-x-auto -mx-1 px-1">
-            <table className="w-full min-w-[620px] text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="text-left text-gray-500 border-b">
                   <th className="pb-2">Name</th>
+                  <th className="pb-2">Kind</th>
                   <th className="pb-2">Status</th>
                   <th className="pb-2">PID</th>
                   <th className="pb-2">CPU</th>
@@ -257,8 +258,9 @@ export default function ClientDetail() {
               </thead>
               <tbody>
                 {processes.map(p => (
-                  <tr key={p.friendly_name} className="border-b last:border-0">
+                  <tr key={`proc:${p.friendly_name}`} className="border-b">
                     <td className="py-2 font-medium">{p.friendly_name}</td>
+                    <td className="py-2 text-gray-500">process</td>
                     <td className="py-2">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${p.is_running ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {p.is_running ? 'Running' : 'Stopped'}
@@ -276,6 +278,21 @@ export default function ClientDetail() {
                         <Trash2 size={12} /> Delete
                       </button>
                     </td>
+                  </tr>
+                ))}
+                {checks.map(c => (
+                  <tr key={`check:${c.friendly_name}`} className="border-b last:border-0">
+                    <td className="py-2 font-medium">{c.friendly_name}</td>
+                    <td className="py-2 text-gray-500">check ({c.check_type})</td>
+                    <td className="py-2">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${c.healthy ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {c.healthy ? 'Healthy' : 'Unhealthy'}
+                      </span>
+                    </td>
+                    <td className="py-2 text-gray-400">-</td>
+                    <td className="py-2 text-gray-400">-</td>
+                    <td className="py-2 text-gray-400">-</td>
+                    <td className="py-2 text-right text-gray-400">-</td>
                   </tr>
                 ))}
               </tbody>
@@ -316,39 +333,6 @@ export default function ClientDetail() {
           <p className="text-sm text-gray-400 py-6">No history yet for this range.</p>
         )}
       </div>
-
-      {/* Checks */}
-      {checks.length > 0 && (
-        <div className="bg-white rounded-lg border p-4 mb-6">
-          <h2 className="font-semibold text-gray-700 mb-3">Checks</h2>
-          <div className="overflow-x-auto -mx-1 px-1">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b">
-                  <th className="pb-2">Name</th>
-                  <th className="pb-2">Type</th>
-                  <th className="pb-2">Status</th>
-                  <th className="pb-2">Message</th>
-                </tr>
-              </thead>
-              <tbody>
-                {checks.map(c => (
-                  <tr key={c.friendly_name} className="border-b last:border-0">
-                    <td className="py-2 font-medium">{c.friendly_name}</td>
-                    <td className="py-2 text-gray-500">{c.check_type}</td>
-                    <td className="py-2">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${c.healthy ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {c.healthy ? 'Healthy' : 'Unhealthy'}
-                      </span>
-                    </td>
-                    <td className="py-2 text-gray-500" title={c.message}>{c.message || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* Thresholds (collapsed by default) */}
       <div className="bg-white rounded-lg border p-4 mb-6">
