@@ -1,6 +1,7 @@
 import type { ClientWithMetrics, Client, Metrics, ProcessSnapshot, CheckSnapshot, Alert, Thresholds, AlertProvider } from '../types';
 
-const API_BASE = '/api/v1/admin';
+// Relative path so it resolves against <base href> when served under a subpath
+const API_BASE = 'api/v1/admin';
 
 function getAuthHeaders(): HeadersInit {
   const creds = sessionStorage.getItem('machinemon_auth');

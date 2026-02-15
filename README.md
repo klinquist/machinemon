@@ -178,6 +178,7 @@ Config file location:
 ```toml
 listen_addr = "0.0.0.0:8080"
 external_url = "https://monitor.example.com"  # public URL (set when behind reverse proxy)
+base_path = ""                                 # URL subpath (e.g. "/machinemon") for subpath deployments
 database_path = "/var/lib/machinemon/machinemon.db"
 binaries_dir = "/var/lib/machinemon/binaries"
 
@@ -203,6 +204,7 @@ dev_proxy_url = "http://localhost:5173"
 |---|---|---|
 | `listen_addr` | Bind address (host:port) | `:8080` |
 | `external_url` | Public URL for reverse proxy setups (e.g. `https://monitor.example.com`) | — |
+| `base_path` | URL subpath prefix (e.g. `/machinemon`) for serving behind a subpath | — |
 | `database_path` | SQLite database file path | OS-specific |
 | `binaries_dir` | Directory containing client `.tar.gz` files for download | OS-specific |
 | `tls_mode` | `none`, `autocert`, `selfsigned`, or `manual` | `none` |
@@ -322,9 +324,9 @@ external_url = "https://monitor.example.com"
 
 The `--setup` wizard will ask you for the listen address (port) and the external URL. The `external_url` is used for generating install scripts and dashboard links — set it to the public URL that clients and browsers will use.
 
-**Important:** MachineMon must be served at the root of a domain or subdomain (e.g. `https://monitor.example.com`). Subpath routing (e.g. `/machinemon/`) is not supported because the embedded SPA expects to be at `/`.
+#### Subdomain (simplest)
 
-#### nginx
+Serve MachineMon at the root of a subdomain like `monitor.example.com`:
 
 ```nginx
 server {
@@ -340,10 +342,35 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
     }
 }
 ```
+
+#### Subpath (e.g. `/machinemon/`)
+
+Serve MachineMon under a path on an existing domain. Set `base_path` in your server config:
+
+```toml
+base_path = "/machinemon"
+external_url = "https://example.com/machinemon"
+listen_addr = "127.0.0.1:8080"
+tls_mode = "none"
+```
+
+Then configure nginx with a rewrite to strip the prefix:
+
+```nginx
+location /machinemon/ {
+    rewrite ^/machinemon/(.*) /$1 break;
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+The nginx rewrite strips `/machinemon/` before forwarding to the server. The `base_path` config tells the SPA to generate correct links and API calls under the subpath.
 
 #### Caddy
 

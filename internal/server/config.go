@@ -11,9 +11,10 @@ import (
 
 type Config struct {
 	ListenAddr   string `toml:"listen_addr"`
-	ExternalURL  string `toml:"external_url"` // public URL (e.g. https://monitor.example.com) — used for install scripts, dashboard links
+	ExternalURL  string `toml:"external_url"`  // public URL (e.g. https://monitor.example.com) — used for install scripts, dashboard links
+	BasePath     string `toml:"base_path"`     // URL path prefix when behind a reverse proxy subpath (e.g. "/machinemon")
 	DatabasePath string `toml:"database_path"`
-	BinariesDir  string `toml:"binaries_dir"` // directory containing client .tar.gz binaries
+	BinariesDir  string `toml:"binaries_dir"`  // directory containing client .tar.gz binaries
 
 	// TLS
 	TLSMode      string `toml:"tls_mode"` // "autocert", "selfsigned", "manual", "none"

@@ -8,6 +8,9 @@ import ClientDetail from './pages/ClientDetail';
 import Alerts from './pages/Alerts';
 import Settings from './pages/Settings';
 
+// Read base path injected by server (for subpath deployments behind reverse proxy)
+const basePath = (window as any).__BASE_PATH__ || '';
+
 function App() {
   const [authed, setAuthed] = useState(isAuthenticated());
 
@@ -22,7 +25,7 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basePath}>
       <Routes>
         <Route element={<Layout onLogout={() => setAuthed(false)} />}>
           <Route path="/" element={<Dashboard />} />
