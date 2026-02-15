@@ -101,9 +101,22 @@ export default function Dashboard() {
               <span className="flex items-center gap-1">
                 <Clock size={12} /> {timeAgo(client.last_seen_at)}
               </span>
-              {client.process_count > 0 && (
-                <span>{client.process_count} process{client.process_count !== 1 ? 'es' : ''}</span>
-              )}
+              <div className="flex items-center gap-2 overflow-hidden">
+                {client.public_ip && (
+                  <span className="font-mono text-[11px] text-gray-500">pub {client.public_ip}</span>
+                )}
+                {client.interface_ips && client.interface_ips.length > 0 && (
+                  <span
+                    className="font-mono text-[11px] text-gray-400 truncate max-w-[180px]"
+                    title={client.interface_ips.join(', ')}
+                  >
+                    if {client.interface_ips.join(', ')}
+                  </span>
+                )}
+                {client.process_count > 0 && (
+                  <span>{client.process_count} process{client.process_count !== 1 ? 'es' : ''}</span>
+                )}
+              </div>
             </div>
           </Link>
         ))}

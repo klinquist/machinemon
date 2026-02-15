@@ -37,6 +37,7 @@ func NewReporter(serverURL, password string, insecureSkipTLS bool) *Reporter {
 
 func (r *Reporter) CheckIn(clientID, sessionID string, metrics *SystemMetrics, procs []ProcessStatus, checks []CheckResult) (*models.CheckInResponse, error) {
 	hostname, _ := os.Hostname()
+	interfaceIPs := ListInterfaceIPs()
 
 	processes := make([]models.ProcessPayload, len(procs))
 	for i, p := range procs {
@@ -58,6 +59,7 @@ func (r *Reporter) CheckIn(clientID, sessionID string, metrics *SystemMetrics, p
 		ClientVersion: version.Version,
 		ClientID:      clientID,
 		SessionID:     sessionID,
+		InterfaceIPs:  interfaceIPs,
 		Metrics: models.MetricsPayload{
 			CPUPercent:     metrics.CPUPercent,
 			MemPercent:     metrics.MemPercent,

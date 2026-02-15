@@ -6,6 +6,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV1,
 	migrateV2,
 	migrateV3,
+	migrateV4,
 }
 
 func migrateV1(tx *sql.Tx) error {
@@ -116,5 +117,13 @@ func migrateV2(tx *sql.Tx) error {
 
 func migrateV3(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE clients ADD COLUMN custom_name TEXT NOT NULL DEFAULT ''`)
+	return err
+}
+
+func migrateV4(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE clients ADD COLUMN public_ip TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE clients ADD COLUMN interface_ips TEXT NOT NULL DEFAULT '[]'`)
 	return err
 }

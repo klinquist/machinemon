@@ -2,6 +2,8 @@ export interface Client {
   id: string;
   hostname: string;
   custom_name?: string;
+  public_ip?: string;
+  interface_ips?: string[];
   os: string;
   arch: string;
   client_version: string;
@@ -23,6 +25,8 @@ export interface ClientWithMetrics {
   id: string;
   hostname: string;
   custom_name?: string;
+  public_ip?: string;
+  interface_ips?: string[];
   os: string;
   arch: string;
   client_version: string;

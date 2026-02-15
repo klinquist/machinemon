@@ -190,6 +190,17 @@ export default function ClientDetail() {
             <Pencil size={14} />
           </button>
           <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">{client.os}/{client.arch}</span>
+          {client.public_ip && (
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono">public {client.public_ip}</span>
+          )}
+          {client.interface_ips && client.interface_ips.length > 0 && (
+            <span
+              className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono max-w-[360px] truncate"
+              title={client.interface_ips.join(', ')}
+            >
+              interfaces {client.interface_ips.join(', ')}
+            </span>
+          )}
         </div>
         <div className="flex gap-2">
           <button onClick={() => loadData()} className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100" title="Refresh">

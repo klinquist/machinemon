@@ -2,7 +2,9 @@ package server
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/machinemon/machinemon/internal/models"
@@ -20,7 +22,7 @@ func (s *Server) handleCheckIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientID, wasOffline, sessionChanged, err := s.store.UpsertClient(req)
+	clientID, wasOffline, sessionChanged, err := s.store.UpsertClient(req, clientIPFromRequest(r))
 	if err != nil {
 		s.logger.Error("failed to upsert client", "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
@@ -66,4 +68,26 @@ func (s *Server) handleCheckIn(w http.ResponseWriter, r *http.Request) {
 		NextCheckInSeconds: 120,
 		ServerTime:         time.Now().UTC(),
 	})
+}
+
+func clientIPFromRequest(r *http.Request) string {
+	raw := strings.TrimSpace(r.RemoteAddr)
+	if raw == "" {
+		return ""
+	}
+
+	// In case a proxy chain slips through, keep the first client hop.
+	if idx := strings.Index(raw, ","); idx >= 0 {
+		raw = strings.TrimSpace(raw[:idx])
+	}
+
+	if host, _, err := net.SplitHostPort(raw); err == nil {
+		raw = host
+	}
+	raw = strings.Trim(raw, "[]")
+
+	if ip := net.ParseIP(raw); ip != nil {
+		return ip.String()
+	}
+	return raw
 }

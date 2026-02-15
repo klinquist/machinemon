@@ -2,7 +2,9 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,6 +15,46 @@ import (
 
 type SQLiteStore struct {
 	db *sql.DB
+}
+
+func encodeInterfaceIPs(ips []string) string {
+	if len(ips) == 0 {
+		return "[]"
+	}
+	seen := make(map[string]struct{}, len(ips))
+	cleaned := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		ip = strings.TrimSpace(ip)
+		if ip == "" {
+			continue
+		}
+		if _, ok := seen[ip]; ok {
+			continue
+		}
+		seen[ip] = struct{}{}
+		cleaned = append(cleaned, ip)
+	}
+	sort.Strings(cleaned)
+	if len(cleaned) == 0 {
+		return "[]"
+	}
+	b, err := json.Marshal(cleaned)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}
+
+func decodeInterfaceIPs(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var ips []string
+	if err := json.Unmarshal([]byte(raw), &ips); err != nil {
+		return nil
+	}
+	return ips
 }
 
 func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
@@ -64,8 +106,9 @@ func (s *SQLiteStore) migrate() error {
 
 // --- Client operations ---
 
-func (s *SQLiteStore) UpsertClient(req models.CheckInRequest) (string, bool, bool, error) {
+func (s *SQLiteStore) UpsertClient(req models.CheckInRequest, publicIP string) (string, bool, bool, error) {
 	now := time.Now().UTC()
+	interfaceIPsJSON := encodeInterfaceIPs(req.InterfaceIPs)
 
 	// If client has an ID, try to update it
 	if req.ClientID != "" {
@@ -78,8 +121,8 @@ func (s *SQLiteStore) UpsertClient(req models.CheckInRequest) (string, bool, boo
 			wasOffline := !isOnline
 			sessionChanged := req.SessionID != "" && oldSessionID.Valid && oldSessionID.String != "" && oldSessionID.String != req.SessionID
 			_, err := s.db.Exec(`UPDATE clients SET hostname = ?, os = ?, arch = ?, client_version = ?,
-				last_seen_at = ?, is_online = 1, is_deleted = 0, session_id = ? WHERE id = ?`,
-				req.Hostname, req.OS, req.Arch, req.ClientVersion, now, req.SessionID, req.ClientID)
+				last_seen_at = ?, is_online = 1, is_deleted = 0, session_id = ?, public_ip = ?, interface_ips = ? WHERE id = ?`,
+				req.Hostname, req.OS, req.Arch, req.ClientVersion, now, req.SessionID, publicIP, interfaceIPsJSON, req.ClientID)
 			if err != nil {
 				return "", false, false, fmt.Errorf("update client: %w", err)
 			}
@@ -90,9 +133,9 @@ func (s *SQLiteStore) UpsertClient(req models.CheckInRequest) (string, bool, boo
 
 	// Create new client
 	id := uuid.New().String()
-	_, err := s.db.Exec(`INSERT INTO clients (id, hostname, os, arch, client_version, first_seen_at, last_seen_at, is_online, session_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-		id, req.Hostname, req.OS, req.Arch, req.ClientVersion, now, now, req.SessionID)
+	_, err := s.db.Exec(`INSERT INTO clients (id, hostname, os, arch, client_version, first_seen_at, last_seen_at, is_online, session_id, public_ip, interface_ips)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+		id, req.Hostname, req.OS, req.Arch, req.ClientVersion, now, now, req.SessionID, publicIP, interfaceIPsJSON)
 	if err != nil {
 		return "", false, false, fmt.Errorf("insert client: %w", err)
 	}
@@ -103,11 +146,12 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	c := &models.Client{}
 	var mutedUntil sql.NullTime
 	var muteReason sql.NullString
-	err := s.db.QueryRow(`SELECT id, hostname, custom_name, os, arch, client_version, first_seen_at, last_seen_at,
+	var interfaceIPsJSON string
+	err := s.db.QueryRow(`SELECT id, hostname, custom_name, public_ip, interface_ips, os, arch, client_version, first_seen_at, last_seen_at,
 		is_online, is_deleted, cpu_warn_pct, cpu_crit_pct, mem_warn_pct, mem_crit_pct,
 		disk_warn_pct, disk_crit_pct, alerts_muted, muted_until, mute_reason
 		FROM clients WHERE id = ?`, id).Scan(
-		&c.ID, &c.Hostname, &c.CustomName, &c.OS, &c.Arch, &c.ClientVersion,
+		&c.ID, &c.Hostname, &c.CustomName, &c.PublicIP, &interfaceIPsJSON, &c.OS, &c.Arch, &c.ClientVersion,
 		&c.FirstSeenAt, &c.LastSeenAt, &c.IsOnline, &c.IsDeleted,
 		&c.CPUWarnPct, &c.CPUCritPct, &c.MemWarnPct, &c.MemCritPct,
 		&c.DiskWarnPct, &c.DiskCritPct, &c.AlertsMuted, &mutedUntil, &muteReason)
@@ -123,11 +167,12 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	if muteReason.Valid {
 		c.MuteReason = muteReason.String
 	}
+	c.InterfaceIPs = decodeInterfaceIPs(interfaceIPsJSON)
 	return c, nil
 }
 
 func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
-	rows, err := s.db.Query(`SELECT c.id, c.hostname, c.custom_name, c.os, c.arch, c.client_version,
+	rows, err := s.db.Query(`SELECT c.id, c.hostname, c.custom_name, c.public_ip, c.interface_ips, c.os, c.arch, c.client_version,
 		c.first_seen_at, c.last_seen_at, c.is_online, c.alerts_muted, c.muted_until,
 		c.cpu_warn_pct, c.cpu_crit_pct, c.mem_warn_pct, c.mem_crit_pct,
 		c.disk_warn_pct, c.disk_crit_pct,
@@ -152,9 +197,10 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 		var cpuPct, memPct, diskPct sql.NullFloat64
 		var memTotal, memUsed, diskTotal, diskUsed sql.NullInt64
 		var recordedAt sql.NullTime
+		var interfaceIPsJSON string
 
 		err := rows.Scan(
-			&cwm.ID, &cwm.Hostname, &cwm.CustomName, &cwm.OS, &cwm.Arch, &cwm.ClientVersion,
+			&cwm.ID, &cwm.Hostname, &cwm.CustomName, &cwm.PublicIP, &interfaceIPsJSON, &cwm.OS, &cwm.Arch, &cwm.ClientVersion,
 			&cwm.FirstSeenAt, &cwm.LastSeenAt, &cwm.IsOnline, &cwm.AlertsMuted, &mutedUntil,
 			&cwm.CPUWarnPct, &cwm.CPUCritPct, &cwm.MemWarnPct, &cwm.MemCritPct,
 			&cwm.DiskWarnPct, &cwm.DiskCritPct,
@@ -168,6 +214,7 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 		if mutedUntil.Valid {
 			cwm.MutedUntil = &mutedUntil.Time
 		}
+		cwm.InterfaceIPs = decodeInterfaceIPs(interfaceIPsJSON)
 		if cpuPct.Valid {
 			cwm.LatestMetrics = &models.Metric{
 				CPUPercent:     cpuPct.Float64,
@@ -196,7 +243,7 @@ func (s *SQLiteStore) SetClientOnline(id string, online bool) error {
 }
 
 func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
-	rows, err := s.db.Query(`SELECT id, hostname, custom_name, os, arch, last_seen_at, is_online,
+	rows, err := s.db.Query(`SELECT id, hostname, custom_name, public_ip, os, arch, last_seen_at, is_online,
 		alerts_muted, muted_until, mute_reason
 		FROM clients WHERE is_online = 1 AND is_deleted = 0`)
 	if err != nil {
@@ -209,7 +256,7 @@ func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 		var c models.Client
 		var mutedUntil sql.NullTime
 		var muteReason sql.NullString
-		err := rows.Scan(&c.ID, &c.Hostname, &c.CustomName, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
+		err := rows.Scan(&c.ID, &c.Hostname, &c.CustomName, &c.PublicIP, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
 			&c.AlertsMuted, &mutedUntil, &muteReason)
 		if err != nil {
 			return nil, err
@@ -229,7 +276,7 @@ func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 // is older than thresholdSeconds. The comparison uses SQLite's datetime('now')
 // to avoid Go/SQLite timezone mismatches.
 func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Client, error) {
-	rows, err := s.db.Query(`SELECT id, hostname, custom_name, os, arch, last_seen_at, is_online,
+	rows, err := s.db.Query(`SELECT id, hostname, custom_name, public_ip, os, arch, last_seen_at, is_online,
 		alerts_muted, muted_until, mute_reason
 		FROM clients
 		WHERE is_online = 1 AND is_deleted = 0
@@ -245,7 +292,7 @@ func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Clie
 		var c models.Client
 		var mutedUntil sql.NullTime
 		var muteReason sql.NullString
-		err := rows.Scan(&c.ID, &c.Hostname, &c.CustomName, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
+		err := rows.Scan(&c.ID, &c.Hostname, &c.CustomName, &c.PublicIP, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
 			&c.AlertsMuted, &mutedUntil, &muteReason)
 		if err != nil {
 			return nil, err

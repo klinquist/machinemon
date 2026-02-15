@@ -11,7 +11,7 @@ type Store interface {
 	Close() error
 
 	// Client operations
-	UpsertClient(req models.CheckInRequest) (clientID string, wasOffline bool, sessionChanged bool, err error)
+	UpsertClient(req models.CheckInRequest, publicIP string) (clientID string, wasOffline bool, sessionChanged bool, err error)
 	GetClient(id string) (*models.Client, error)
 	ListClients() ([]models.ClientWithMetrics, error)
 	DeleteClient(id string) error
