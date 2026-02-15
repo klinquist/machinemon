@@ -30,11 +30,11 @@ MachineMon consists of a **server** (single Go binary with embedded web dashboar
 # Auto-detect platform and install
 curl -sSL https://raw.githubusercontent.com/klinquist/machinemon/main/scripts/install-server.sh | sh
 
-# Run interactive setup (sets admin password, client password, TLS mode)
+# Run interactive setup (sets admin password, client password, TLS mode, port)
 machinemon-server --setup
 
-# Start the server
-machinemon-server
+# Install as a system service (auto-detects systemd, sysvinit, openrc, upstart, launchd)
+sudo machinemon-server --service-install
 ```
 
 Or download manually for a specific platform:
@@ -100,9 +100,8 @@ machinemon-client --setup \
   --password=your_client_password \
   --no-daemon
 
-# Start the service
-sudo systemctl enable --now machinemon-client   # Linux
-launchctl load ~/Library/LaunchAgents/com.machinemon.client.plist  # macOS
+# Install as a system service
+sudo machinemon-client --service-install
 ```
 
 ### 4. See It in Action
@@ -178,6 +177,7 @@ Config file location:
 
 ```toml
 listen_addr = "0.0.0.0:8080"
+external_url = "https://monitor.example.com"  # public URL (set when behind reverse proxy)
 database_path = "/var/lib/machinemon/machinemon.db"
 binaries_dir = "/var/lib/machinemon/binaries"
 
@@ -202,6 +202,7 @@ dev_proxy_url = "http://localhost:5173"
 | Field | Description | Default |
 |---|---|---|
 | `listen_addr` | Bind address (host:port) | `:8080` |
+| `external_url` | Public URL for reverse proxy setups (e.g. `https://monitor.example.com`) | — |
 | `database_path` | SQLite database file path | OS-specific |
 | `binaries_dir` | Directory containing client `.tar.gz` files for download | OS-specific |
 | `tls_mode` | `none`, `autocert`, `selfsigned`, or `manual` | `none` |
@@ -316,9 +317,14 @@ Best for production. Run MachineMon behind nginx, Caddy, or Traefik.
 ```toml
 tls_mode = "none"
 listen_addr = "127.0.0.1:8080"
+external_url = "https://monitor.example.com"
 ```
 
-Example nginx configuration:
+The `--setup` wizard will ask you for the listen address (port) and the external URL. The `external_url` is used for generating install scripts and dashboard links — set it to the public URL that clients and browsers will use.
+
+**Important:** MachineMon must be served at the root of a domain or subdomain (e.g. `https://monitor.example.com`). Subpath routing (e.g. `/machinemon/`) is not supported because the embedded SPA expects to be at `/`.
+
+#### nginx
 
 ```nginx
 server {
@@ -336,6 +342,14 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
     }
+}
+```
+
+#### Caddy
+
+```
+monitor.example.com {
+    reverse_proxy 127.0.0.1:8080
 }
 ```
 
@@ -568,38 +582,32 @@ curl https://monitor.example.com/healthz
 
 ## Deployment
 
-### Systemd (Linux)
+### Installing as a Service
 
-Service files are in the `deploy/` directory and are automatically installed by the install scripts.
+Both binaries have a built-in `--service-install` flag that auto-detects your init system and creates the appropriate service file:
 
 ```bash
-# Server
-sudo cp deploy/machinemon-server.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now machinemon-server
-journalctl -u machinemon-server -f
+# Install server as a service
+sudo machinemon-server --service-install
 
-# Client
-sudo cp deploy/machinemon-client.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now machinemon-client
-journalctl -u machinemon-client -f
+# Install client as a service
+sudo machinemon-client --service-install
 ```
 
-### Launchd (macOS)
+Supported init systems:
 
-Plist files are in the `deploy/` directory and are automatically installed by the install scripts.
+| Init System | Platforms | Service File |
+|---|---|---|
+| **systemd** | Most modern Linux (Ubuntu 16+, Debian 8+, CentOS 7+, Fedora, Arch) | `/etc/systemd/system/machinemon-*.service` |
+| **SysVInit** | Older Linux (Ubuntu 14 and earlier, Debian 7 and earlier) | `/etc/init.d/machinemon-*` |
+| **OpenRC** | Alpine Linux, Gentoo | `/etc/init.d/machinemon-*` |
+| **Upstart** | Ubuntu 9.10–14.10 | `/etc/init/machinemon-*.conf` |
+| **launchd** | macOS | `~/Library/LaunchAgents/com.machinemon.*.plist` |
 
+To remove a service:
 ```bash
-# Server
-cp deploy/com.machinemon.server.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.machinemon.server.plist
-tail -f /tmp/machinemon-server.log
-
-# Client
-cp deploy/com.machinemon.client.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.machinemon.client.plist
-tail -f /tmp/machinemon-client.log
+sudo machinemon-server --service-uninstall
+sudo machinemon-client --service-uninstall
 ```
 
 ### Binary Distribution from Server
@@ -625,25 +633,20 @@ curl -sSL https://your-server.com/download/install.sh | sh
 ### Uninstalling
 
 ```bash
-# Interactive uninstaller
+# Remove the service, then the binary
+sudo machinemon-client --service-uninstall
+sudo rm /usr/local/bin/machinemon-client
+
+sudo machinemon-server --service-uninstall
+sudo rm /usr/local/bin/machinemon-server
+```
+
+Or use the interactive uninstaller:
+```bash
 curl -sSL https://raw.githubusercontent.com/klinquist/machinemon/main/scripts/uninstall.sh | sh
 ```
 
-Or manually:
-```bash
-# Linux
-sudo systemctl stop machinemon-client
-sudo systemctl disable machinemon-client
-sudo rm /etc/systemd/system/machinemon-client.service
-sudo rm /usr/local/bin/machinemon-client
-
-# macOS
-launchctl unload ~/Library/LaunchAgents/com.machinemon.client.plist
-rm ~/Library/LaunchAgents/com.machinemon.client.plist
-sudo rm /usr/local/bin/machinemon-client
-```
-
-Config files are preserved by default. Remove them manually if desired.
+Config files and database are preserved by default. Remove them manually if desired.
 
 ---
 
