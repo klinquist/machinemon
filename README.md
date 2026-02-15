@@ -27,15 +27,29 @@ MachineMon consists of a **server** (single Go binary with embedded web dashboar
 ### 1. Set Up the Server
 
 ```bash
-# Download (replace with your OS/arch)
-curl -sSL https://github.com/YOUR_USER/machinemon/releases/latest/download/machinemon-server-linux-amd64.tar.gz | tar xz
-sudo mv machinemon-server-linux-amd64 /usr/local/bin/machinemon-server
+# Auto-detect platform and install
+curl -sSL https://raw.githubusercontent.com/klinquist/machinemon/main/scripts/install-server.sh | sh
 
 # Run interactive setup (sets admin password, client password, TLS mode)
 machinemon-server --setup
 
 # Start the server
 machinemon-server
+```
+
+Or download manually for a specific platform:
+
+| Platform | Download |
+|---|---|
+| Linux x86_64 | `machinemon-server-linux-amd64` |
+| Linux ARM64 | `machinemon-server-linux-arm64` |
+| macOS Apple Silicon | `machinemon-server-darwin-arm64` |
+| macOS Intel | `machinemon-server-darwin-amd64` |
+
+```bash
+# Example: manual download for Linux x86_64
+curl -sSL https://github.com/klinquist/machinemon/releases/latest/download/machinemon-server-linux-amd64.tar.gz | tar xz
+sudo mv machinemon-server-linux-amd64 /usr/local/bin/machinemon-server
 ```
 
 The setup wizard will ask you for:
@@ -108,7 +122,7 @@ Open your dashboard. Within 2 minutes, the client will appear with live metrics.
 ### Build Everything
 
 ```bash
-git clone https://github.com/YOUR_USER/machinemon.git
+git clone https://github.com/klinquist/machinemon.git
 cd machinemon
 
 # Build React SPA + cross-compile client (6 platforms) + server (4 platforms)
@@ -612,7 +626,7 @@ curl -sSL https://your-server.com/download/install.sh | sh
 
 ```bash
 # Interactive uninstaller
-curl -sSL https://raw.githubusercontent.com/YOUR_USER/machinemon/main/scripts/uninstall.sh | sh
+curl -sSL https://raw.githubusercontent.com/klinquist/machinemon/main/scripts/uninstall.sh | sh
 ```
 
 Or manually:
