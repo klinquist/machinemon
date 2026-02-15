@@ -37,6 +37,21 @@ require_cmd() {
   fi
 }
 
+retry_cmd() {
+  local attempts="$1"
+  shift
+
+  local n=1
+  until "$@"; do
+    if [[ "$n" -ge "$attempts" ]]; then
+      return 1
+    fi
+    echo "Command failed (attempt $n/$attempts), retrying: $*" >&2
+    n=$((n + 1))
+    sleep 2
+  done
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tag)
@@ -198,9 +213,9 @@ if [[ "$DO_UPLOAD" -eq 1 ]]; then
   )
 
   if gh release view "$TAG" >/dev/null 2>&1; then
-    gh release upload "$TAG" "${assets[@]}" --clobber
+    retry_cmd 3 gh release upload "$TAG" "${assets[@]}" --clobber
   else
-    gh release create "$TAG" "${assets[@]}" --target "$COMMIT" --title "$TAG" --generate-notes
+    retry_cmd 3 gh release create "$TAG" "${assets[@]}" --target "$COMMIT" --title "$TAG" --generate-notes
   fi
 fi
 
