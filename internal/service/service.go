@@ -195,7 +195,7 @@ func Restart(name string) error {
 	case Upstart:
 		return runPrivileged("restart", name)
 	case Launchd:
-		return startLaunchd(name)
+		return restartLaunchd(name)
 	default:
 		return fmt.Errorf("could not detect init system")
 	}
@@ -558,6 +558,32 @@ func startLaunchd(name string) error {
 		return fmt.Errorf("launchctl kickstart failed: %v (%s)", kickstartErr, strings.TrimSpace(string(kickstartOut)))
 	}
 	return nil
+}
+
+func restartLaunchd(name string) error {
+	target, err := launchdTarget()
+	if err != nil {
+		return err
+	}
+
+	label := "com.machinemon." + strings.TrimPrefix(name, "machinemon-")
+	domain := "gui/" + target.UID
+
+	// For already loaded agents, kickstart is the correct restart path.
+	// Falling back to bootstrap can fail with "Bootstrap failed: 5" for existing services.
+	kickstartOut, kickstartErr := runLaunchctl(target, "kickstart", "-k", domain+"/"+label)
+	if kickstartErr == nil {
+		return nil
+	}
+
+	msg := strings.ToLower(strings.TrimSpace(string(kickstartOut)))
+	if strings.Contains(msg, "could not find service") ||
+		strings.Contains(msg, "service not found") ||
+		strings.Contains(msg, "no such process") {
+		// Not loaded yet (or unloaded unexpectedly) — bootstrap and start it.
+		return startLaunchd(name)
+	}
+	return fmt.Errorf("launchctl kickstart failed: %v (%s)", kickstartErr, strings.TrimSpace(string(kickstartOut)))
 }
 
 func installLaunchd(name, binPath, configPath string) error {
