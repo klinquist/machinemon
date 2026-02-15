@@ -105,13 +105,6 @@ export default function Dashboard() {
                 {client.public_ip && (
                   <span className="font-mono text-[11px] text-gray-500">pub {client.public_ip}</span>
                 )}
-                {client.interface_ips && client.interface_ips.length > 0 && (
-                  <span
-                    className="font-mono text-[11px] text-gray-400 break-all whitespace-normal text-right"
-                  >
-                    if {client.interface_ips.join(', ')}
-                  </span>
-                )}
                 {client.process_count > 0 && (
                   <span>{client.process_count} process{client.process_count !== 1 ? 'es' : ''}</span>
                 )}
