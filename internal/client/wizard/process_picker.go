@@ -121,17 +121,8 @@ func maybeAddProcesses(cfg *client.Config) error {
 
 	added := 0
 	for {
-		filtered := filterAddableCandidates(cfg.Processes, candidates)
-		if len(filtered) == 0 {
-			if added == 0 {
-				fmt.Println("  No additional processes to add.")
-				fmt.Println()
-			}
-			break
-		}
-
-		options := make([]huh.Option[string], 0, len(filtered)+1)
-		for i, c := range filtered {
+		options := make([]huh.Option[string], 0, len(candidates)+1)
+		for i, c := range candidates {
 			display := c.Cmdline
 			if len(display) > 80 {
 				display = display[:77] + "..."
@@ -159,15 +150,19 @@ func maybeAddProcesses(cfg *client.Config) error {
 		}
 
 		idx, err := strconv.Atoi(choice)
-		if err != nil || idx < 0 || idx >= len(filtered) {
+		if err != nil || idx < 0 || idx >= len(candidates) {
 			fmt.Println("  Invalid selection.")
 			fmt.Println()
 			continue
 		}
 
-		c := filtered[idx]
+		c := candidates[idx]
 		suggestedName := client.SuggestFriendlyName(c)
 		matchPattern := client.SuggestMatchPattern(c)
+		if isAlreadyMonitored(cfg.Processes, matchPattern) {
+			fmt.Printf("  Already monitored: %s\n\n", matchPattern)
+			continue
+		}
 
 		friendlyName := suggestedName
 		nameForm := huh.NewForm(
@@ -205,25 +200,13 @@ func maybeAddProcesses(cfg *client.Config) error {
 	return nil
 }
 
-func filterAddableCandidates(configured []client.ProcessConfig, candidates []client.ProcessCandidate) []client.ProcessCandidate {
-	existingPatterns := make(map[string]bool, len(configured))
-	for _, p := range configured {
-		key := normalizeMatchType(p.MatchType) + "|" + p.MatchPattern
-		existingPatterns[key] = true
-	}
-
-	seenPatterns := make(map[string]bool)
-	filtered := make([]client.ProcessCandidate, 0, len(candidates))
-	for _, c := range candidates {
-		matchPattern := client.SuggestMatchPattern(c)
-		key := "substring|" + matchPattern
-		if existingPatterns[key] || seenPatterns[key] {
-			continue
+func isAlreadyMonitored(processes []client.ProcessConfig, matchPattern string) bool {
+	for _, p := range processes {
+		if normalizeMatchType(p.MatchType) == "substring" && p.MatchPattern == matchPattern {
+			return true
 		}
-		seenPatterns[key] = true
-		filtered = append(filtered, c)
 	}
-	return filtered
+	return false
 }
 
 func printMonitoredProcessTable(processes []client.ProcessConfig) {

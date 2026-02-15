@@ -2,6 +2,7 @@ package client
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -31,8 +32,8 @@ func MatchProcesses(watched []ProcessConfig) ([]ProcessStatus, error) {
 			MatchPattern: w.MatchPattern,
 		}
 		for _, p := range allProcs {
-			cmdline, err := p.Cmdline()
-			if err != nil || cmdline == "" {
+			cmdline, ok := processSearchText(p)
+			if !ok {
 				continue
 			}
 			if matchesCmdline(w.MatchPattern, w.MatchType, cmdline) {
@@ -74,17 +75,16 @@ func ListProcessCandidates() ([]ProcessCandidate, error) {
 		return nil, err
 	}
 
-	seen := make(map[string]bool)
 	var candidates []ProcessCandidate
 
 	for _, p := range procs {
 		name, err := p.Name()
-		if err != nil || name == "" {
+		if err != nil || strings.TrimSpace(name) == "" {
 			continue
 		}
 
-		cmdline, _ := p.Cmdline()
-		if cmdline == "" {
+		cmdline, ok := processSearchText(p)
+		if !ok {
 			continue
 		}
 
@@ -93,20 +93,41 @@ func ListProcessCandidates() ([]ProcessCandidate, error) {
 			continue
 		}
 
-		// For deduplication, use the full cmdline as key
-		key := cmdline
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-
 		candidates = append(candidates, ProcessCandidate{
 			PID:     p.Pid,
 			Name:    name,
 			Cmdline: cmdline,
 		})
 	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Name == candidates[j].Name {
+			return candidates[i].PID < candidates[j].PID
+		}
+		return strings.ToLower(candidates[i].Name) < strings.ToLower(candidates[j].Name)
+	})
 	return candidates, nil
+}
+
+func processSearchText(p *process.Process) (string, bool) {
+	cmdline, _ := p.Cmdline()
+	cmdline = strings.TrimSpace(cmdline)
+	if cmdline != "" {
+		return cmdline, true
+	}
+
+	exe, _ := p.Exe()
+	exe = strings.TrimSpace(exe)
+	if exe != "" {
+		return exe, true
+	}
+
+	name, _ := p.Name()
+	name = strings.TrimSpace(name)
+	if name != "" {
+		return name, true
+	}
+
+	return "", false
 }
 
 // SuggestMatchPattern returns a good match pattern for a process.
