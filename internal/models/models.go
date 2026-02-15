@@ -90,6 +90,7 @@ type CheckInResponse struct {
 type Client struct {
 	ID            string    `json:"id"`
 	Hostname      string    `json:"hostname"`
+	CustomName    string    `json:"custom_name,omitempty"`
 	OS            string    `json:"os"`
 	Arch          string    `json:"arch"`
 	ClientVersion string    `json:"client_version"`

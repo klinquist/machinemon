@@ -1,6 +1,7 @@
 export interface Client {
   id: string;
   hostname: string;
+  custom_name?: string;
   os: string;
   arch: string;
   client_version: string;
@@ -21,6 +22,7 @@ export interface Client {
 export interface ClientWithMetrics {
   id: string;
   hostname: string;
+  custom_name?: string;
   os: string;
   arch: string;
   client_version: string;

@@ -18,6 +18,7 @@ type Store interface {
 	SetClientOnline(id string, online bool) error
 	GetOnlineClients() ([]models.Client, error)
 	GetStaleOnlineClients(thresholdSeconds int) ([]models.Client, error)
+	SetClientCustomName(id, customName string) error
 	SetClientThresholds(id string, t *models.Thresholds) error
 	SetClientMute(id string, muted bool, until *time.Time, reason string) error
 

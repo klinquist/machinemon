@@ -72,6 +72,19 @@ export async function setThresholds(id: string, thresholds: Thresholds): Promise
   });
 }
 
+export async function clearThresholds(id: string): Promise<void> {
+  await fetchJSON(`/clients/${id}/thresholds`, {
+    method: 'DELETE',
+  });
+}
+
+export async function setClientName(id: string, name: string): Promise<void> {
+  await fetchJSON(`/clients/${id}/name`, {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  });
+}
+
 export async function setMute(id: string, muted: boolean, durationMinutes?: number, reason?: string): Promise<void> {
   await fetchJSON(`/clients/${id}/mute`, {
     method: 'PUT',

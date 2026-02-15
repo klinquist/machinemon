@@ -103,11 +103,11 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	c := &models.Client{}
 	var mutedUntil sql.NullTime
 	var muteReason sql.NullString
-	err := s.db.QueryRow(`SELECT id, hostname, os, arch, client_version, first_seen_at, last_seen_at,
+	err := s.db.QueryRow(`SELECT id, hostname, custom_name, os, arch, client_version, first_seen_at, last_seen_at,
 		is_online, is_deleted, cpu_warn_pct, cpu_crit_pct, mem_warn_pct, mem_crit_pct,
 		disk_warn_pct, disk_crit_pct, alerts_muted, muted_until, mute_reason
 		FROM clients WHERE id = ?`, id).Scan(
-		&c.ID, &c.Hostname, &c.OS, &c.Arch, &c.ClientVersion,
+		&c.ID, &c.Hostname, &c.CustomName, &c.OS, &c.Arch, &c.ClientVersion,
 		&c.FirstSeenAt, &c.LastSeenAt, &c.IsOnline, &c.IsDeleted,
 		&c.CPUWarnPct, &c.CPUCritPct, &c.MemWarnPct, &c.MemCritPct,
 		&c.DiskWarnPct, &c.DiskCritPct, &c.AlertsMuted, &mutedUntil, &muteReason)
@@ -127,7 +127,7 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 }
 
 func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
-	rows, err := s.db.Query(`SELECT c.id, c.hostname, c.os, c.arch, c.client_version,
+	rows, err := s.db.Query(`SELECT c.id, c.hostname, c.custom_name, c.os, c.arch, c.client_version,
 		c.first_seen_at, c.last_seen_at, c.is_online, c.alerts_muted, c.muted_until,
 		c.cpu_warn_pct, c.cpu_crit_pct, c.mem_warn_pct, c.mem_crit_pct,
 		c.disk_warn_pct, c.disk_crit_pct,
@@ -139,7 +139,7 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 			SELECT id FROM metrics WHERE client_id = c.id ORDER BY recorded_at DESC LIMIT 1
 		)
 		WHERE c.is_deleted = 0
-		ORDER BY c.hostname`)
+		ORDER BY COALESCE(NULLIF(c.custom_name, ''), c.hostname)`)
 	if err != nil {
 		return nil, fmt.Errorf("list clients: %w", err)
 	}
@@ -154,7 +154,7 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 		var recordedAt sql.NullTime
 
 		err := rows.Scan(
-			&cwm.ID, &cwm.Hostname, &cwm.OS, &cwm.Arch, &cwm.ClientVersion,
+			&cwm.ID, &cwm.Hostname, &cwm.CustomName, &cwm.OS, &cwm.Arch, &cwm.ClientVersion,
 			&cwm.FirstSeenAt, &cwm.LastSeenAt, &cwm.IsOnline, &cwm.AlertsMuted, &mutedUntil,
 			&cwm.CPUWarnPct, &cwm.CPUCritPct, &cwm.MemWarnPct, &cwm.MemCritPct,
 			&cwm.DiskWarnPct, &cwm.DiskCritPct,
@@ -196,7 +196,7 @@ func (s *SQLiteStore) SetClientOnline(id string, online bool) error {
 }
 
 func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
-	rows, err := s.db.Query(`SELECT id, hostname, os, arch, last_seen_at, is_online,
+	rows, err := s.db.Query(`SELECT id, hostname, custom_name, os, arch, last_seen_at, is_online,
 		alerts_muted, muted_until, mute_reason
 		FROM clients WHERE is_online = 1 AND is_deleted = 0`)
 	if err != nil {
@@ -209,7 +209,7 @@ func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 		var c models.Client
 		var mutedUntil sql.NullTime
 		var muteReason sql.NullString
-		err := rows.Scan(&c.ID, &c.Hostname, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
+		err := rows.Scan(&c.ID, &c.Hostname, &c.CustomName, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
 			&c.AlertsMuted, &mutedUntil, &muteReason)
 		if err != nil {
 			return nil, err
@@ -229,7 +229,7 @@ func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 // is older than thresholdSeconds. The comparison uses SQLite's datetime('now')
 // to avoid Go/SQLite timezone mismatches.
 func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Client, error) {
-	rows, err := s.db.Query(`SELECT id, hostname, os, arch, last_seen_at, is_online,
+	rows, err := s.db.Query(`SELECT id, hostname, custom_name, os, arch, last_seen_at, is_online,
 		alerts_muted, muted_until, mute_reason
 		FROM clients
 		WHERE is_online = 1 AND is_deleted = 0
@@ -245,7 +245,7 @@ func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Clie
 		var c models.Client
 		var mutedUntil sql.NullTime
 		var muteReason sql.NullString
-		err := rows.Scan(&c.ID, &c.Hostname, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
+		err := rows.Scan(&c.ID, &c.Hostname, &c.CustomName, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
 			&c.AlertsMuted, &mutedUntil, &muteReason)
 		if err != nil {
 			return nil, err
@@ -272,6 +272,11 @@ func (s *SQLiteStore) SetClientThresholds(id string, t *models.Thresholds) error
 		mem_warn_pct = ?, mem_crit_pct = ?, disk_warn_pct = ?, disk_crit_pct = ?
 		WHERE id = ?`,
 		t.CPUWarnPct, t.CPUCritPct, t.MemWarnPct, t.MemCritPct, t.DiskWarnPct, t.DiskCritPct, id)
+	return err
+}
+
+func (s *SQLiteStore) SetClientCustomName(id, customName string) error {
+	_, err := s.db.Exec(`UPDATE clients SET custom_name = ? WHERE id = ?`, strings.TrimSpace(customName), id)
 	return err
 }
 

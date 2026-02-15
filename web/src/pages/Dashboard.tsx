@@ -14,6 +14,10 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+function clientLabel(client: ClientWithMetrics): string {
+  return client.custom_name?.trim() || client.hostname;
+}
+
 export default function Dashboard() {
   const [clients, setClients] = useState<ClientWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +82,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <StatusDot online={client.is_online} muted={client.alerts_muted} />
-                <span className="font-semibold text-gray-900">{client.hostname}</span>
+                <span className="font-semibold text-gray-900">{clientLabel(client)}</span>
               </div>
               <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
                 {client.os}/{client.arch}

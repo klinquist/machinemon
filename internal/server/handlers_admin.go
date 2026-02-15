@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -78,6 +79,43 @@ func (s *Server) handleSetThresholds(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.store.SetClientThresholds(id, &t); err != nil {
 		s.logger.Error("failed to set thresholds", "id", id, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+func (s *Server) handleClearThresholds(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := s.store.SetClientThresholds(id, nil); err != nil {
+		s.logger.Error("failed to clear thresholds", "id", id, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "reset"})
+}
+
+type setClientNameRequest struct {
+	Name string `json:"name"`
+}
+
+func (s *Server) handleSetClientName(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req setClientNameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if len(name) > 120 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name too long (max 120 chars)"})
+		return
+	}
+
+	if err := s.store.SetClientCustomName(id, name); err != nil {
+		s.logger.Error("failed to set client name", "id", id, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}

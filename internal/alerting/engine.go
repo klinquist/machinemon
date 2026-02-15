@@ -89,12 +89,13 @@ func (e *Engine) checkOfflineClients() {
 	}
 
 	for _, c := range clients {
-		e.logger.Warn("client went offline", "client_id", c.ID, "hostname", c.Hostname,
+		hostLabel := clientLabel(&c)
+		e.logger.Warn("client went offline", "client_id", c.ID, "hostname", hostLabel,
 			"last_seen", c.LastSeenAt)
 		e.store.SetClientOnline(c.ID, false)
 		e.fireAlert(c.ID, models.AlertTypeOffline, models.SeverityCritical,
 			fmt.Sprintf("Client '%s' has gone offline (no check-in for %d+ seconds)",
-				c.Hostname, thresholdSecs))
+				hostLabel, thresholdSecs))
 	}
 }
 
@@ -117,10 +118,11 @@ func (e *Engine) evaluateCheckIn(clientID string) {
 	// 1. Was this client previously offline? Fire "online" alert
 	// The UpsertClient already set is_online=true and returned wasOffline.
 	// We check by looking for a recent offline alert without a corresponding online alert.
+	hostLabel := clientLabel(client)
 	lastOfflineAlert, _ := e.store.GetLastAlertByTypes(clientID, models.AlertTypeOffline, models.AlertTypeOnline)
 	if lastOfflineAlert != nil && lastOfflineAlert.AlertType == models.AlertTypeOffline {
 		e.fireAlert(clientID, models.AlertTypeOnline, models.SeverityInfo,
-			fmt.Sprintf("Client '%s' is back online", client.Hostname))
+			fmt.Sprintf("Client '%s' is back online", hostLabel))
 	}
 
 	// 2. Threshold checks
@@ -130,15 +132,15 @@ func (e *Engine) evaluateCheckIn(clientID string) {
 	}
 
 	thresholds := e.resolveThresholds(client)
-	e.checkThreshold(clientID, client.Hostname, "cpu", latest.CPUPercent, thresholds.CPUWarnPct, thresholds.CPUCritPct)
-	e.checkThreshold(clientID, client.Hostname, "mem", latest.MemPercent, thresholds.MemWarnPct, thresholds.MemCritPct)
-	e.checkThreshold(clientID, client.Hostname, "disk", latest.DiskPercent, thresholds.DiskWarnPct, thresholds.DiskCritPct)
+	e.checkThreshold(clientID, hostLabel, "cpu", latest.CPUPercent, thresholds.CPUWarnPct, thresholds.CPUCritPct)
+	e.checkThreshold(clientID, hostLabel, "mem", latest.MemPercent, thresholds.MemWarnPct, thresholds.MemCritPct)
+	e.checkThreshold(clientID, hostLabel, "disk", latest.DiskPercent, thresholds.DiskWarnPct, thresholds.DiskCritPct)
 
 	// 3. Process checks
-	e.checkProcesses(clientID, client.Hostname)
+	e.checkProcesses(clientID, hostLabel)
 
 	// 4. Check results (script, http, file_touch, ...)
-	e.checkChecks(clientID, client.Hostname)
+	e.checkChecks(clientID, hostLabel)
 }
 
 func (e *Engine) resolveThresholds(client *models.Client) models.Thresholds {
@@ -327,4 +329,14 @@ func (e *Engine) cleanupOldData() {
 	if deleted > 0 {
 		e.logger.Info("pruned old data", "rows_deleted", deleted, "metrics_retention_days", metricsRetentionDays)
 	}
+}
+
+func clientLabel(c *models.Client) string {
+	if c == nil {
+		return ""
+	}
+	if strings.TrimSpace(c.CustomName) != "" {
+		return c.CustomName
+	}
+	return c.Hostname
 }
