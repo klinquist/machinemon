@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { clearAuth } from '../api/client';
-import { Monitor, Bell, Settings, LogOut } from 'lucide-react';
+import { Monitor, Bell, Settings, LogOut, Menu, X } from 'lucide-react';
 
 export default function Layout({ onLogout }: { onLogout: () => void }) {
   const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: Monitor },
@@ -11,9 +13,36 @@ export default function Layout({ onLogout }: { onLogout: () => void }) {
     { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <nav className="w-56 bg-gray-900 text-white flex flex-col min-h-screen fixed">
+    <div className="min-h-screen bg-gray-50 md:flex">
+      <header className="md:hidden sticky top-0 z-40 bg-gray-900 text-white border-b border-gray-700">
+        <div className="h-14 px-4 flex items-center justify-between">
+          <h1 className="text-base font-bold tracking-tight">MachineMon</h1>
+          <button
+            onClick={() => setMobileMenuOpen(v => !v)}
+            className="p-2 rounded-md hover:bg-gray-800"
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+          >
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
+      </header>
+
+      {mobileMenuOpen && (
+        <button
+          className="md:hidden fixed inset-0 z-30 bg-black/40"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-label="Close menu overlay"
+        />
+      )}
+
+      <nav className={`w-64 bg-gray-900 text-white flex flex-col fixed z-40 top-0 bottom-0 transform transition-transform duration-200 md:translate-x-0 ${
+        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+      } md:w-56 md:min-h-screen`}>
         <div className="p-4 border-b border-gray-700">
           <h1 className="text-lg font-bold tracking-tight">MachineMon</h1>
         </div>
@@ -43,7 +72,7 @@ export default function Layout({ onLogout }: { onLogout: () => void }) {
           </button>
         </div>
       </nav>
-      <main className="flex-1 ml-56 p-6">
+      <main className="flex-1 md:ml-56 p-4 md:p-6">
         <Outlet />
       </main>
     </div>

@@ -178,28 +178,39 @@ export default function ClientDetail() {
         <ArrowLeft size={16} /> Back
       </button>
 
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <StatusDot online={client.is_online} muted={client.alerts_muted} />
-          <h1 className="text-2xl font-bold text-gray-900">{displayName(client)}</h1>
-          <button
-            onClick={() => { setNameInput(client.custom_name || ''); setRenameOpen(true); }}
-            className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
-            title="Rename client"
-          >
-            <Pencil size={14} />
-          </button>
-          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">{client.os}/{client.arch}</span>
-          {client.public_ip && (
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono">public {client.public_ip}</span>
-          )}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <StatusDot online={client.is_online} muted={client.alerts_muted} />
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{displayName(client)}</h1>
+            <button
+              onClick={() => { setNameInput(client.custom_name || ''); setRenameOpen(true); }}
+              className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+              title="Rename client"
+            >
+              <Pencil size={14} />
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">{client.os}/{client.arch}</span>
+            {client.public_ip && (
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono">public {client.public_ip}</span>
+            )}
+          </div>
           {client.interface_ips && client.interface_ips.length > 0 && (
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono break-all whitespace-normal">
-              interfaces {client.interface_ips.join(', ')}
-            </span>
+            <div className="mt-2">
+              <div className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Interface IPs</div>
+              <div className="flex flex-wrap gap-1.5">
+                {client.interface_ips.map(ip => (
+                  <span key={ip} className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded font-mono">
+                    {ip}
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 self-start sm:self-auto">
           <button onClick={() => loadData()} className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100" title="Refresh">
             <RefreshCw size={18} />
           </button>
@@ -221,7 +232,7 @@ export default function ClientDetail() {
 
       {/* Metrics (top section) */}
       {metrics && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <MetricGauge label="CPU" value={metrics.cpu_pct} size="lg" />
           <MetricGauge label="Memory" value={metrics.mem_pct} size="lg" unit={`% (${formatBytes(metrics.mem_used_bytes)}/${formatBytes(metrics.mem_total_bytes)})`} />
           <MetricGauge label="Disk" value={metrics.disk_pct} size="lg" unit={`% (${formatBytes(metrics.disk_used_bytes)}/${formatBytes(metrics.disk_total_bytes)})`} />
@@ -232,50 +243,52 @@ export default function ClientDetail() {
       {processes.length > 0 && (
         <div className="bg-white rounded-lg border p-4 mb-6">
           <h2 className="font-semibold text-gray-700 mb-3">Watched Processes</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 border-b">
-                <th className="pb-2">Name</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2">PID</th>
-                <th className="pb-2">CPU</th>
-                <th className="pb-2">Memory</th>
-                <th className="pb-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {processes.map(p => (
-                <tr key={p.friendly_name} className="border-b last:border-0">
-                  <td className="py-2 font-medium">{p.friendly_name}</td>
-                  <td className="py-2">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${p.is_running ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                      {p.is_running ? 'Running' : 'Stopped'}
-                    </span>
-                  </td>
-                  <td className="py-2 text-gray-500 font-mono">{p.pid || '-'}</td>
-                  <td className="py-2 text-gray-500">{p.cpu_pct?.toFixed(1)}%</td>
-                  <td className="py-2 text-gray-500">{p.mem_pct?.toFixed(1)}%</td>
-                  <td className="py-2 text-right">
-                    <button
-                      onClick={() => handleDeleteProcess(p.friendly_name)}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
-                      title="Delete from server"
-                    >
-                      <Trash2 size={12} /> Delete
-                    </button>
-                  </td>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="w-full min-w-[620px] text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b">
+                  <th className="pb-2">Name</th>
+                  <th className="pb-2">Status</th>
+                  <th className="pb-2">PID</th>
+                  <th className="pb-2">CPU</th>
+                  <th className="pb-2">Memory</th>
+                  <th className="pb-2 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {processes.map(p => (
+                  <tr key={p.friendly_name} className="border-b last:border-0">
+                    <td className="py-2 font-medium">{p.friendly_name}</td>
+                    <td className="py-2">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${p.is_running ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {p.is_running ? 'Running' : 'Stopped'}
+                      </span>
+                    </td>
+                    <td className="py-2 text-gray-500 font-mono">{p.pid || '-'}</td>
+                    <td className="py-2 text-gray-500">{p.cpu_pct?.toFixed(1)}%</td>
+                    <td className="py-2 text-gray-500">{p.mem_pct?.toFixed(1)}%</td>
+                    <td className="py-2 text-right">
+                      <button
+                        onClick={() => handleDeleteProcess(p.friendly_name)}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
+                        title="Delete from server"
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* Chart */}
       <div className="bg-white rounded-lg border p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
           <h2 className="font-semibold text-gray-700">History</h2>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             {['1h', '6h', '24h', '7d', '14d'].map(r => (
               <button
                 key={r}
@@ -308,30 +321,32 @@ export default function ClientDetail() {
       {checks.length > 0 && (
         <div className="bg-white rounded-lg border p-4 mb-6">
           <h2 className="font-semibold text-gray-700 mb-3">Checks</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 border-b">
-                <th className="pb-2">Name</th>
-                <th className="pb-2">Type</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2">Message</th>
-              </tr>
-            </thead>
-            <tbody>
-              {checks.map(c => (
-                <tr key={c.friendly_name} className="border-b last:border-0">
-                  <td className="py-2 font-medium">{c.friendly_name}</td>
-                  <td className="py-2 text-gray-500">{c.check_type}</td>
-                  <td className="py-2">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${c.healthy ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                      {c.healthy ? 'Healthy' : 'Unhealthy'}
-                    </span>
-                  </td>
-                  <td className="py-2 text-gray-500 truncate max-w-xs" title={c.message}>{c.message || '-'}</td>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b">
+                  <th className="pb-2">Name</th>
+                  <th className="pb-2">Type</th>
+                  <th className="pb-2">Status</th>
+                  <th className="pb-2">Message</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {checks.map(c => (
+                  <tr key={c.friendly_name} className="border-b last:border-0">
+                    <td className="py-2 font-medium">{c.friendly_name}</td>
+                    <td className="py-2 text-gray-500">{c.check_type}</td>
+                    <td className="py-2">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${c.healthy ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {c.healthy ? 'Healthy' : 'Unhealthy'}
+                      </span>
+                    </td>
+                    <td className="py-2 text-gray-500" title={c.message}>{c.message || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -346,7 +361,7 @@ export default function ClientDetail() {
         </button>
         {showThresholds && (
           <div className="mt-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {[
                 ['cpu_warn_pct', 'CPU Warn %'],
                 ['cpu_crit_pct', 'CPU Crit %'],
@@ -368,7 +383,7 @@ export default function ClientDetail() {
                 </div>
               ))}
             </div>
-            <div className="flex gap-2 mt-4">
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
               <button onClick={handleSaveThresholds} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
                 Save Thresholds
               </button>
@@ -395,11 +410,11 @@ export default function ClientDetail() {
             {alerts.length > 0 && (
               <div className="space-y-2">
                 {alerts.map(a => (
-                  <div key={a.id} className="flex items-center gap-3 text-sm py-1.5 border-b last:border-0">
+                  <div key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm py-1.5 border-b last:border-0">
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                       a.severity === 'critical' ? 'bg-red-500' : a.severity === 'warning' ? 'bg-amber-400' : 'bg-blue-400'
                     }`} />
-                    <span className="text-gray-500 text-xs w-32 flex-shrink-0">
+                    <span className="text-gray-500 text-xs sm:w-32 sm:flex-shrink-0">
                       {new Date(a.fired_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                     <span className="text-gray-700">{a.message}</span>
