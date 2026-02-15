@@ -62,28 +62,27 @@ func (e *Engine) Run(ctx context.Context) {
 
 func (e *Engine) checkOfflineClients() {
 	thresholdStr, _ := e.store.GetSetting("offline_threshold_seconds")
-	threshold := 240 * time.Second // default 4 minutes
+	thresholdSecs := 240 // default 4 minutes
 	if thresholdStr != "" {
-		if secs, err := time.ParseDuration(thresholdStr + "s"); err == nil {
-			threshold = secs
+		if n, err := fmt.Sscanf(thresholdStr, "%d", &thresholdSecs); n == 0 || err != nil {
+			thresholdSecs = 240
 		}
 	}
 
-	clients, err := e.store.GetOnlineClients()
+	// Use SQL-side time comparison to avoid Go/SQLite timezone mismatches
+	clients, err := e.store.GetStaleOnlineClients(thresholdSecs)
 	if err != nil {
-		e.logger.Error("failed to get online clients", "err", err)
+		e.logger.Error("failed to get stale clients", "err", err)
 		return
 	}
 
 	for _, c := range clients {
-		if time.Since(c.LastSeenAt) > threshold {
-			e.logger.Warn("client went offline", "client_id", c.ID, "hostname", c.Hostname,
-				"last_seen", c.LastSeenAt)
-			e.store.SetClientOnline(c.ID, false)
-			e.fireAlert(c.ID, models.AlertTypeOffline, models.SeverityCritical,
-				fmt.Sprintf("Client '%s' has gone offline (last seen %s ago)",
-					c.Hostname, time.Since(c.LastSeenAt).Round(time.Second)))
-		}
+		e.logger.Warn("client went offline", "client_id", c.ID, "hostname", c.Hostname,
+			"last_seen", c.LastSeenAt)
+		e.store.SetClientOnline(c.ID, false)
+		e.fireAlert(c.ID, models.AlertTypeOffline, models.SeverityCritical,
+			fmt.Sprintf("Client '%s' has gone offline (no check-in for %d+ seconds)",
+				c.Hostname, thresholdSecs))
 	}
 }
 

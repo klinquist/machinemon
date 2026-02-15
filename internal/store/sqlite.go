@@ -215,6 +215,38 @@ func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 	return clients, rows.Err()
 }
 
+// GetStaleOnlineClients returns clients marked online whose last_seen_at
+// is older than thresholdSeconds. The comparison uses SQLite's datetime('now')
+// to avoid Go/SQLite timezone mismatches.
+func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Client, error) {
+	rows, err := s.db.Query(`SELECT id, hostname, os, arch, last_seen_at, is_online,
+		alerts_muted, muted_until, mute_reason
+		FROM clients
+		WHERE is_online = 1 AND is_deleted = 0
+		AND last_seen_at < datetime('now', ? || ' seconds')`,
+		fmt.Sprintf("-%d", thresholdSeconds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var clients []models.Client
+	for rows.Next() {
+		var c models.Client
+		var mutedUntil sql.NullTime
+		err := rows.Scan(&c.ID, &c.Hostname, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
+			&c.AlertsMuted, &mutedUntil, &c.MuteReason)
+		if err != nil {
+			return nil, err
+		}
+		if mutedUntil.Valid {
+			c.MutedUntil = &mutedUntil.Time
+		}
+		clients = append(clients, c)
+	}
+	return clients, rows.Err()
+}
+
 func (s *SQLiteStore) SetClientThresholds(id string, t *models.Thresholds) error {
 	if t == nil {
 		_, err := s.db.Exec(`UPDATE clients SET cpu_warn_pct = NULL, cpu_crit_pct = NULL,
