@@ -36,7 +36,7 @@ func main() {
 	}
 
 	if *serviceInstall {
-		binPath, _ := filepath.Abs(os.Args[0])
+		binPath, _ := os.Executable()
 		if err := service.Install("machinemon-server", binPath); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
