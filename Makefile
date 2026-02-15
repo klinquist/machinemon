@@ -50,7 +50,7 @@ lint:
 release: all
 	cd dist && for f in machinemon-client-* machinemon-server-*; do \
 		case "$$f" in *.tar.gz) continue ;; esac; \
-		COPYFILE_DISABLE=1 tar -czf "$$f.tar.gz" "$$f"; \
+		COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata -czf "$$f.tar.gz" "$$f"; \
 	done
 	cd dist && shasum -a 256 *.tar.gz > checksums.txt
 
@@ -60,7 +60,7 @@ prepare-binaries: build-client
 	mkdir -p binaries
 	cd dist && for f in machinemon-client-*; do \
 		case "$$f" in *.tar.gz) continue ;; esac; \
-		tar -czf "../binaries/$$f.tar.gz" "$$f"; \
+		COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata -czf "../binaries/$$f.tar.gz" "$$f"; \
 	done
 	@echo ""
 	@echo "Client binaries ready in binaries/"
