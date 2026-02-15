@@ -82,34 +82,36 @@ func main() {
 		}
 		logger.Info("config saved", "path", *configPath)
 
-		// If the client is already running as a service, restart that service so it
-		// picks up the new config, instead of launching another interactive daemon.
-		if !*noDaemon {
-			if running, err := service.IsRunning("machinemon-client"); err != nil {
-				logger.Warn("could not determine service status", "err", err)
-			} else if running {
-				var restartService bool
-				form := huh.NewForm(
-					huh.NewGroup(
-						huh.NewConfirm().
-							Title("MachineMon client service is already running. Restart it now to apply this configuration?").
-							Value(&restartService),
-					),
-				)
-				if err := form.Run(); err != nil {
-					logger.Error("prompt failed", "err", err)
+		// Do not launch interactive daemon after setup.
+		// If service is already running, offer restart so it picks up new config.
+		if running, err := service.IsRunning("machinemon-client"); err != nil {
+			logger.Warn("could not determine service status", "err", err)
+			printServiceNextSteps()
+			return
+		} else if running {
+			var restartService bool
+			form := huh.NewForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title("MachineMon client service is already running. Restart it now to apply this configuration?").
+						Value(&restartService),
+				),
+			)
+			if err := form.Run(); err != nil {
+				logger.Error("prompt failed", "err", err)
+				os.Exit(1)
+			}
+			if restartService {
+				if err := service.Restart("machinemon-client"); err != nil {
+					logger.Error("failed to restart service", "err", err)
 					os.Exit(1)
 				}
-				if restartService {
-					if err := service.Restart("machinemon-client"); err != nil {
-						logger.Error("failed to restart service", "err", err)
-						os.Exit(1)
-					}
-					logger.Info("service restarted", "service", "machinemon-client")
-				}
-				return
+				logger.Info("service restarted", "service", "machinemon-client")
 			}
+			return
 		}
+		printServiceNextSteps()
+		return
 	}
 
 	if !cfg.IsConfigured() {
@@ -132,4 +134,30 @@ func main() {
 	}
 
 	client.RunDaemon(cfg, *configPath, logger)
+}
+
+func printServiceNextSteps() {
+	fmt.Println()
+	fmt.Println("Configuration saved.")
+	fmt.Println("Run the client as a service:")
+	fmt.Println("  sudo machinemon-client --service-install")
+
+	switch service.Detect() {
+	case service.Systemd:
+		fmt.Println("Then start it:")
+		fmt.Println("  sudo systemctl enable --now machinemon-client")
+	case service.OpenRC:
+		fmt.Println("Then start and enable it:")
+		fmt.Println("  sudo rc-service machinemon-client start")
+		fmt.Println("  sudo rc-update add machinemon-client default")
+	case service.SysVInit:
+		fmt.Println("Then start it:")
+		fmt.Println("  sudo service machinemon-client start")
+	case service.Upstart:
+		fmt.Println("Then start it:")
+		fmt.Println("  sudo start machinemon-client")
+	case service.Launchd:
+		fmt.Println("Then start it:")
+		fmt.Println("  launchctl load ~/Library/LaunchAgents/com.machinemon.client.plist")
+	}
 }
