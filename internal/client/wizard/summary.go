@@ -7,7 +7,7 @@ import (
 	"github.com/machinemon/machinemon/internal/client"
 )
 
-func runSummary(cfg *client.Config) error {
+func runSummary(cfg *client.Config) (bool, error) {
 	fmt.Println()
 	fmt.Println("  ┌─────────────── Summary ───────────────┐")
 	fmt.Printf("  │ Server:  %-29s │\n", truncate(cfg.ServerURL, 29))
@@ -32,10 +32,7 @@ func runSummary(cfg *client.Config) error {
 		),
 	)
 	if err := form.Run(); err != nil {
-		return err
+		return false, err
 	}
-	if !confirmed {
-		return fmt.Errorf("setup cancelled by user")
-	}
-	return nil
+	return confirmed, nil
 }

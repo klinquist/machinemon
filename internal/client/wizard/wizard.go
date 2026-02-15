@@ -23,22 +23,70 @@ func Run(existingConfig *client.Config) (*client.Config, error) {
 	fmt.Println("  ╚══════════════════════════════════════╝")
 	fmt.Println()
 
-	// Step 1: Server connection
-	if err := runServerForm(cfg); err != nil {
-		return nil, fmt.Errorf("server setup: %w", err)
+	if cfg.IsConfigured() {
+		fmt.Println("  Existing configuration detected.")
+		fmt.Println()
 	}
 
-	// Step 2: Process picker
-	if err := runProcessPicker(cfg); err != nil {
-		return nil, fmt.Errorf("process picker: %w", err)
+	for {
+		action, err := runSetupMenu(cfg)
+		if err != nil {
+			return nil, err
+		}
+		switch action {
+		case "server":
+			if err := runServerForm(cfg); err != nil {
+				return nil, fmt.Errorf("server setup: %w", err)
+			}
+		case "processes":
+			if err := runProcessPicker(cfg); err != nil {
+				return nil, fmt.Errorf("process picker: %w", err)
+			}
+		case "save":
+			if !cfg.IsConfigured() {
+				fmt.Println("  Server URL and client password are required before saving.")
+				fmt.Println()
+				continue
+			}
+			confirmed, err := runSummary(cfg)
+			if err != nil {
+				return nil, fmt.Errorf("summary: %w", err)
+			}
+			if confirmed {
+				return cfg, nil
+			}
+		case "cancel":
+			return nil, fmt.Errorf("setup cancelled by user")
+		}
 	}
+}
 
-	// Step 3: Summary and confirm
-	if err := runSummary(cfg); err != nil {
-		return nil, fmt.Errorf("summary: %w", err)
+func runSetupMenu(cfg *client.Config) (string, error) {
+	serverLabel := cfg.ServerURL
+	if strings.TrimSpace(serverLabel) == "" {
+		serverLabel = "<not set>"
 	}
+	procLabel := fmt.Sprintf("%d process(es)", len(cfg.Processes))
 
-	return cfg, nil
+	var action string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Setup menu").
+				Description(fmt.Sprintf("Server: %s | Monitored: %s", truncate(serverLabel, 36), procLabel)).
+				Options(
+					huh.NewOption("Configure server settings", "server"),
+					huh.NewOption("Configure monitored processes", "processes"),
+					huh.NewOption("Save and exit", "save"),
+					huh.NewOption("Cancel setup", "cancel"),
+				).
+				Value(&action),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return "", err
+	}
+	return action, nil
 }
 
 func runServerForm(cfg *client.Config) error {

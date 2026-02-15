@@ -19,7 +19,7 @@ func runProcessPicker(cfg *client.Config) error {
 		if len(cfg.Processes) > 0 {
 			options = append(options, huh.NewOption("Stop monitoring existing process(es)", "remove"))
 		}
-		options = append(options, huh.NewOption("Continue setup", "done"))
+		options = append(options, huh.NewOption("Back to setup menu", "done"))
 
 		var action string
 		form := huh.NewForm(
@@ -58,18 +58,20 @@ func maybeRemoveProcesses(cfg *client.Config) error {
 	removed := 0
 	for len(cfg.Processes) > 0 {
 		options := make([]huh.Option[string], 0, len(cfg.Processes)+1)
+		options = append(options, huh.NewOption("< Back to process menu >", "back"))
 		for i, p := range cfg.Processes {
 			label := fmt.Sprintf("%s (%s)", p.FriendlyName, truncate(p.MatchPattern, 50))
-			options = append(options, huh.NewOption(label, strconv.Itoa(i)))
+			options = append(options, huh.NewOption(label, "proc:"+strconv.Itoa(i)))
 		}
-		options = append(options, huh.NewOption("Done removing", "done"))
 
 		var choice string
 		removeForm := huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Select one process to stop monitoring").
-					Description("You can remove more after this selection").
+					Description("Type to filter. Enter to select.").
+					Filtering(true).
+					Height(14).
 					Options(options...).
 					Value(&choice),
 			),
@@ -77,9 +79,15 @@ func maybeRemoveProcesses(cfg *client.Config) error {
 		if err := removeForm.Run(); err != nil {
 			return err
 		}
-		if choice == "done" {
+		if choice == "back" {
 			break
 		}
+		if !strings.HasPrefix(choice, "proc:") {
+			fmt.Println("  Invalid selection.")
+			fmt.Println()
+			continue
+		}
+		choice = strings.TrimPrefix(choice, "proc:")
 
 		idx, err := strconv.Atoi(choice)
 		if err != nil || idx < 0 || idx >= len(cfg.Processes) {
@@ -122,22 +130,24 @@ func maybeAddProcesses(cfg *client.Config) error {
 	added := 0
 	for {
 		options := make([]huh.Option[string], 0, len(candidates)+1)
+		options = append(options, huh.NewOption("< Back to process menu >", "back"))
 		for i, c := range candidates {
 			display := c.Cmdline
 			if len(display) > 80 {
 				display = display[:77] + "..."
 			}
 			label := fmt.Sprintf("[%d] %s", c.PID, display)
-			options = append(options, huh.NewOption(label, strconv.Itoa(i)))
+			options = append(options, huh.NewOption(label, "proc:"+strconv.Itoa(i)))
 		}
-		options = append(options, huh.NewOption("Done adding", "done"))
 
 		var choice string
 		selectForm := huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Select one running process to add").
-					Description("You can add more after this selection").
+					Description("Type to filter. Enter to select.").
+					Filtering(true).
+					Height(16).
 					Options(options...).
 					Value(&choice),
 			),
@@ -145,9 +155,15 @@ func maybeAddProcesses(cfg *client.Config) error {
 		if err := selectForm.Run(); err != nil {
 			return err
 		}
-		if choice == "done" {
+		if choice == "back" {
 			break
 		}
+		if !strings.HasPrefix(choice, "proc:") {
+			fmt.Println("  Invalid selection.")
+			fmt.Println()
+			continue
+		}
+		choice = strings.TrimPrefix(choice, "proc:")
 
 		idx, err := strconv.Atoi(choice)
 		if err != nil || idx < 0 || idx >= len(candidates) {
@@ -189,6 +205,21 @@ func maybeAddProcesses(cfg *client.Config) error {
 		})
 		added++
 		fmt.Printf("  Added: %s (%s)\n\n", friendlyName, matchPattern)
+
+		var addMore bool
+		addMoreForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("Add another process?").
+					Value(&addMore),
+			),
+		)
+		if err := addMoreForm.Run(); err != nil {
+			return err
+		}
+		if !addMore {
+			break
+		}
 	}
 
 	if added > 0 {
