@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure MachineMon Client",
+        "description": "This Home Assistant integration runs as a MachineMon client and sends periodic check-ins.",
+        "data": {
+          "collection_url": "Collection URL",
+          "password": "Client Password",
+          "verify_ssl": "Verify SSL certificate"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid client password",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This MachineMon URL is already configured"
+    }
+  }
+}

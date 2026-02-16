@@ -161,6 +161,23 @@ Open your dashboard. Within 2 minutes, the client will appear with live metrics.
 
 ---
 
+## Home Assistant Client (HACS)
+
+Want Home Assistant to act as a MachineMon client (check-in only, no HA entities)?  
+Follow the HACS install + configuration guide in:
+
+- `homeassistant/README.md`
+
+You will configure:
+
+- Collection URL
+- MachineMon client password
+- SSL verification behavior
+
+The integration sends periodic CPU/memory/disk check-ins to `POST /api/v1/checkin`.
+
+---
+
 ## Building from Source
 
 ### Prerequisites

@@ -1,0 +1,15 @@
+{
+  "domain": "machinemon",
+  "name": "MachineMon",
+  "codeowners": [
+    "@klinquist"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/klinquist/machinemon/tree/main/homeassistant",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "requirements": [
+    "psutil>=5.9.0"
+  ],
+  "version": "0.1.0"
+}
