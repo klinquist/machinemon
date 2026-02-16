@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-TAG="v0.1.0"
+TAG="v0.1.1"
 DO_TESTS=1
 DO_UPLOAD=1
 DO_PUSH=0
@@ -19,7 +19,7 @@ Usage: scripts/release-github.sh [options]
 Builds client/server binaries, packages release archives, and uploads assets to a GitHub release.
 
 Options:
-  --tag <tag>       GitHub release tag to upload/create (default: v0.1.0)
+  --tag <tag>       GitHub release tag to upload/create (default: v0.1.1)
   --push            Push current branch before building
   --no-tests        Skip go test ./...
   --no-upload       Build/package only, do not upload to GitHub release

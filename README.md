@@ -218,7 +218,7 @@ make clean            # Remove all build artifacts
 Use the helper script to run tests, build web/client/server, package archives, and upload assets to a GitHub release:
 
 ```bash
-# Build + upload to v0.1.0
+# Build + upload to v0.1.1
 ./scripts/release-github.sh
 
 # Build + upload to a specific tag
