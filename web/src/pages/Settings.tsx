@@ -18,6 +18,12 @@ export default function Settings() {
   const [clientPw, setClientPw] = useState('');
   const [message, setMessage] = useState('');
 
+  const offlineMinutes = (() => {
+    const secs = Number(settings['offline_threshold_seconds'] || '240');
+    if (!Number.isFinite(secs) || secs <= 0) return 4;
+    return Math.max(1, Math.round(secs / 60));
+  })();
+
   const loadData = async () => {
     try {
       const [p, s] = await Promise.all([fetchProviders(), fetchSettings()]);
@@ -161,6 +167,23 @@ export default function Settings() {
               />
             </div>
           ))}
+        </div>
+        <div className="mt-4">
+          <label className="block text-sm text-gray-600 mb-1">Offline Alert Delay (minutes)</label>
+          <input
+            type="number"
+            min={1}
+            value={offlineMinutes}
+            onChange={e => {
+              const minutes = Math.max(1, Number(e.target.value) || 1);
+              setSettings({ ...settings, offline_threshold_seconds: String(minutes * 60) });
+            }}
+            className="w-full max-w-xs px-3 py-1.5 border rounded text-sm"
+            placeholder="4"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Clients alert offline after this many minutes with no check-in (global default).
+          </p>
         </div>
         <div className="mt-4">
           <label className="block text-sm text-gray-600 mb-1">Metric Retention (days)</label>

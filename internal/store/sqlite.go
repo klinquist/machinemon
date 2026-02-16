@@ -146,15 +146,16 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	c := &models.Client{}
 	var mutedUntil sql.NullTime
 	var muteReason sql.NullString
+	var offlineThresholdSecs sql.NullInt64
 	var interfaceIPsJSON string
 	err := s.db.QueryRow(`SELECT id, hostname, custom_name, public_ip, interface_ips, os, arch, client_version, first_seen_at, last_seen_at,
 		is_online, is_deleted, cpu_warn_pct, cpu_crit_pct, mem_warn_pct, mem_crit_pct,
-		disk_warn_pct, disk_crit_pct, alerts_muted, muted_until, mute_reason
+		disk_warn_pct, disk_crit_pct, offline_threshold_seconds, alerts_muted, muted_until, mute_reason
 		FROM clients WHERE id = ?`, id).Scan(
 		&c.ID, &c.Hostname, &c.CustomName, &c.PublicIP, &interfaceIPsJSON, &c.OS, &c.Arch, &c.ClientVersion,
 		&c.FirstSeenAt, &c.LastSeenAt, &c.IsOnline, &c.IsDeleted,
 		&c.CPUWarnPct, &c.CPUCritPct, &c.MemWarnPct, &c.MemCritPct,
-		&c.DiskWarnPct, &c.DiskCritPct, &c.AlertsMuted, &mutedUntil, &muteReason)
+		&c.DiskWarnPct, &c.DiskCritPct, &offlineThresholdSecs, &c.AlertsMuted, &mutedUntil, &muteReason)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -167,6 +168,10 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	if muteReason.Valid {
 		c.MuteReason = muteReason.String
 	}
+	if offlineThresholdSecs.Valid {
+		v := int(offlineThresholdSecs.Int64)
+		c.OfflineThresholdSeconds = &v
+	}
 	c.InterfaceIPs = decodeInterfaceIPs(interfaceIPsJSON)
 	return c, nil
 }
@@ -175,7 +180,7 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 	rows, err := s.db.Query(`SELECT c.id, c.hostname, c.custom_name, c.public_ip, c.interface_ips, c.os, c.arch, c.client_version,
 		c.first_seen_at, c.last_seen_at, c.is_online, c.alerts_muted, c.muted_until,
 		c.cpu_warn_pct, c.cpu_crit_pct, c.mem_warn_pct, c.mem_crit_pct,
-		c.disk_warn_pct, c.disk_crit_pct,
+		c.disk_warn_pct, c.disk_crit_pct, c.offline_threshold_seconds,
 		m.cpu_pct, m.mem_pct, m.disk_pct, m.mem_total_bytes, m.mem_used_bytes,
 		m.disk_total_bytes, m.disk_used_bytes, m.recorded_at,
 		(SELECT COUNT(*) FROM watched_processes wp WHERE wp.client_id = c.id) as proc_count
@@ -197,13 +202,14 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 		var cpuPct, memPct, diskPct sql.NullFloat64
 		var memTotal, memUsed, diskTotal, diskUsed sql.NullInt64
 		var recordedAt sql.NullTime
+		var offlineThresholdSecs sql.NullInt64
 		var interfaceIPsJSON string
 
 		err := rows.Scan(
 			&cwm.ID, &cwm.Hostname, &cwm.CustomName, &cwm.PublicIP, &interfaceIPsJSON, &cwm.OS, &cwm.Arch, &cwm.ClientVersion,
 			&cwm.FirstSeenAt, &cwm.LastSeenAt, &cwm.IsOnline, &cwm.AlertsMuted, &mutedUntil,
 			&cwm.CPUWarnPct, &cwm.CPUCritPct, &cwm.MemWarnPct, &cwm.MemCritPct,
-			&cwm.DiskWarnPct, &cwm.DiskCritPct,
+			&cwm.DiskWarnPct, &cwm.DiskCritPct, &offlineThresholdSecs,
 			&cpuPct, &memPct, &diskPct, &memTotal, &memUsed,
 			&diskTotal, &diskUsed, &recordedAt,
 			&cwm.ProcessCount,
@@ -213,6 +219,10 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 		}
 		if mutedUntil.Valid {
 			cwm.MutedUntil = &mutedUntil.Time
+		}
+		if offlineThresholdSecs.Valid {
+			v := int(offlineThresholdSecs.Int64)
+			cwm.OfflineThresholdSeconds = &v
 		}
 		cwm.InterfaceIPs = decodeInterfaceIPs(interfaceIPsJSON)
 		if cpuPct.Valid {
@@ -244,7 +254,7 @@ func (s *SQLiteStore) SetClientOnline(id string, online bool) error {
 
 func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 	rows, err := s.db.Query(`SELECT id, hostname, custom_name, public_ip, os, arch, last_seen_at, is_online,
-		alerts_muted, muted_until, mute_reason
+		alerts_muted, muted_until, mute_reason, offline_threshold_seconds
 		FROM clients WHERE is_online = 1 AND is_deleted = 0`)
 	if err != nil {
 		return nil, err
@@ -256,8 +266,9 @@ func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 		var c models.Client
 		var mutedUntil sql.NullTime
 		var muteReason sql.NullString
+		var offlineThresholdSecs sql.NullInt64
 		err := rows.Scan(&c.ID, &c.Hostname, &c.CustomName, &c.PublicIP, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
-			&c.AlertsMuted, &mutedUntil, &muteReason)
+			&c.AlertsMuted, &mutedUntil, &muteReason, &offlineThresholdSecs)
 		if err != nil {
 			return nil, err
 		}
@@ -266,6 +277,10 @@ func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 		}
 		if muteReason.Valid {
 			c.MuteReason = muteReason.String
+		}
+		if offlineThresholdSecs.Valid {
+			v := int(offlineThresholdSecs.Int64)
+			c.OfflineThresholdSeconds = &v
 		}
 		clients = append(clients, c)
 	}
@@ -277,7 +292,7 @@ func (s *SQLiteStore) GetOnlineClients() ([]models.Client, error) {
 // to avoid Go/SQLite timezone mismatches.
 func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Client, error) {
 	rows, err := s.db.Query(`SELECT id, hostname, custom_name, public_ip, os, arch, last_seen_at, is_online,
-		alerts_muted, muted_until, mute_reason
+		alerts_muted, muted_until, mute_reason, offline_threshold_seconds
 		FROM clients
 		WHERE is_online = 1 AND is_deleted = 0
 		AND last_seen_at < datetime('now', ? || ' seconds')`,
@@ -292,8 +307,9 @@ func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Clie
 		var c models.Client
 		var mutedUntil sql.NullTime
 		var muteReason sql.NullString
+		var offlineThresholdSecs sql.NullInt64
 		err := rows.Scan(&c.ID, &c.Hostname, &c.CustomName, &c.PublicIP, &c.OS, &c.Arch, &c.LastSeenAt, &c.IsOnline,
-			&c.AlertsMuted, &mutedUntil, &muteReason)
+			&c.AlertsMuted, &mutedUntil, &muteReason, &offlineThresholdSecs)
 		if err != nil {
 			return nil, err
 		}
@@ -303,6 +319,10 @@ func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Clie
 		if muteReason.Valid {
 			c.MuteReason = muteReason.String
 		}
+		if offlineThresholdSecs.Valid {
+			v := int(offlineThresholdSecs.Int64)
+			c.OfflineThresholdSeconds = &v
+		}
 		clients = append(clients, c)
 	}
 	return clients, rows.Err()
@@ -311,14 +331,26 @@ func (s *SQLiteStore) GetStaleOnlineClients(thresholdSeconds int) ([]models.Clie
 func (s *SQLiteStore) SetClientThresholds(id string, t *models.Thresholds) error {
 	if t == nil {
 		_, err := s.db.Exec(`UPDATE clients SET cpu_warn_pct = NULL, cpu_crit_pct = NULL,
-			mem_warn_pct = NULL, mem_crit_pct = NULL, disk_warn_pct = NULL, disk_crit_pct = NULL
+			mem_warn_pct = NULL, mem_crit_pct = NULL, disk_warn_pct = NULL, disk_crit_pct = NULL,
+			offline_threshold_seconds = NULL
 			WHERE id = ?`, id)
 		return err
 	}
+	offlineOverrideProvided := t.OfflineThresholdMinutes != nil
+	offlineThresholdSecs := 0
+	if offlineOverrideProvided && *t.OfflineThresholdMinutes > 0 {
+		offlineThresholdSecs = *t.OfflineThresholdMinutes * 60
+	}
 	_, err := s.db.Exec(`UPDATE clients SET cpu_warn_pct = ?, cpu_crit_pct = ?,
-		mem_warn_pct = ?, mem_crit_pct = ?, disk_warn_pct = ?, disk_crit_pct = ?
+		mem_warn_pct = ?, mem_crit_pct = ?, disk_warn_pct = ?, disk_crit_pct = ?,
+		offline_threshold_seconds = CASE
+			WHEN ? THEN NULLIF(?, 0)
+			ELSE offline_threshold_seconds
+		END
 		WHERE id = ?`,
-		t.CPUWarnPct, t.CPUCritPct, t.MemWarnPct, t.MemCritPct, t.DiskWarnPct, t.DiskCritPct, id)
+		t.CPUWarnPct, t.CPUCritPct, t.MemWarnPct, t.MemCritPct, t.DiskWarnPct, t.DiskCritPct,
+		offlineOverrideProvided, offlineThresholdSecs,
+		id)
 	return err
 }
 

@@ -8,6 +8,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV3,
 	migrateV4,
 	migrateV5,
+	migrateV6,
 }
 
 func migrateV1(tx *sql.Tx) error {
@@ -148,4 +149,9 @@ func migrateV5(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+func migrateV6(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE clients ADD COLUMN offline_threshold_seconds INTEGER`)
+	return err
 }

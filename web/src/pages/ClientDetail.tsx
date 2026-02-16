@@ -22,6 +22,7 @@ const FALLBACK_THRESHOLDS: Thresholds = {
   mem_crit_pct: 95,
   disk_warn_pct: 80,
   disk_crit_pct: 90,
+  offline_threshold_minutes: 4,
 };
 
 function displayName(client: Client): string {
@@ -76,6 +77,7 @@ export default function ClientDetail() {
         mem_crit_pct: parseSettingNumber(settings, 'mem_crit_pct_default', FALLBACK_THRESHOLDS.mem_crit_pct),
         disk_warn_pct: parseSettingNumber(settings, 'disk_warn_pct_default', FALLBACK_THRESHOLDS.disk_warn_pct),
         disk_crit_pct: parseSettingNumber(settings, 'disk_crit_pct_default', FALLBACK_THRESHOLDS.disk_crit_pct),
+        offline_threshold_minutes: Math.max(1, Math.round(parseSettingNumber(settings, 'offline_threshold_seconds', 240) / 60)),
       };
       setThresholdsForm({
         cpu_warn_pct: data.client.cpu_warn_pct ?? defaults.cpu_warn_pct,
@@ -84,6 +86,9 @@ export default function ClientDetail() {
         mem_crit_pct: data.client.mem_crit_pct ?? defaults.mem_crit_pct,
         disk_warn_pct: data.client.disk_warn_pct ?? defaults.disk_warn_pct,
         disk_crit_pct: data.client.disk_crit_pct ?? defaults.disk_crit_pct,
+        offline_threshold_minutes: data.client.offline_threshold_seconds
+          ? Math.max(1, Math.round(data.client.offline_threshold_seconds / 60))
+          : defaults.offline_threshold_minutes,
       });
 
       const rangeHours = range === '1h' ? 1 : range === '6h' ? 6 : range === '7d' ? 168 : range === '14d' ? 336 : 24;
@@ -475,6 +480,23 @@ export default function ClientDetail() {
                   />
                 </div>
               ))}
+            </div>
+            <div className="mt-3 border rounded-lg p-3 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Offline Alert Delay</h3>
+              <label className="block text-xs text-gray-600 mb-1">Minutes before offline alert</label>
+              <input
+                type="number"
+                min={1}
+                value={thresholdsForm.offline_threshold_minutes}
+                onChange={e => setThresholdsForm({
+                  ...thresholdsForm,
+                  offline_threshold_minutes: Math.max(1, Number(e.target.value) || 1),
+                })}
+                className="w-full max-w-xs px-3 py-1.5 border rounded text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Per-client override. Use &quot;Use Global Defaults&quot; to inherit the global delay.
+              </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 mt-4">
               <button onClick={handleSaveThresholds} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">

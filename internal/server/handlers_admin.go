@@ -81,6 +81,10 @@ func (s *Server) handleSetThresholds(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
+	if t.OfflineThresholdMinutes != nil && *t.OfflineThresholdMinutes < 1 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "offline_threshold_minutes must be >= 1"})
+		return
+	}
 
 	if err := s.store.SetClientThresholds(id, &t); err != nil {
 		s.logger.Error("failed to set thresholds", "id", id, "err", err)

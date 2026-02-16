@@ -119,6 +119,8 @@ type Client struct {
 	MemCritPct  *float64 `json:"mem_crit_pct,omitempty"`
 	DiskWarnPct *float64 `json:"disk_warn_pct,omitempty"`
 	DiskCritPct *float64 `json:"disk_crit_pct,omitempty"`
+	// Per-client offline alert delay override (seconds). Nil means use global default.
+	OfflineThresholdSeconds *int `json:"offline_threshold_seconds,omitempty"`
 
 	AlertsMuted bool       `json:"alerts_muted"`
 	MutedUntil  *time.Time `json:"muted_until,omitempty"`
@@ -249,6 +251,9 @@ type Thresholds struct {
 	MemCritPct  float64 `json:"mem_crit_pct"`
 	DiskWarnPct float64 `json:"disk_warn_pct"`
 	DiskCritPct float64 `json:"disk_crit_pct"`
+	// Optional per-client offline alert delay override in minutes.
+	// Nil means keep current value; use clear-thresholds endpoint to reset to global.
+	OfflineThresholdMinutes *int `json:"offline_threshold_minutes,omitempty"`
 }
 
 // Default thresholds if nothing else is configured.

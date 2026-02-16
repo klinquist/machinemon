@@ -715,6 +715,10 @@ Useful settings keys:
 - `metrics_retention_days` (default `14`) for metrics/process/check history pruning
 - `alerts_retention_days` (optional; if unset, follows `metrics_retention_days`)
 
+Offline alert delay supports both:
+- Global default (Settings page: **Offline Alert Delay (minutes)**)
+- Per-client override (Client Detail -> **Per-Client Alert Thresholds** -> **Offline Alert Delay**)
+
 ### Downloads (Public, No Auth)
 
 ```bash
