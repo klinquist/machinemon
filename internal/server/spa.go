@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -51,13 +52,7 @@ func (s *Server) serveSPA(w http.ResponseWriter, r *http.Request) {
 
 // serveIndex serves index.html, injecting <base> tag if base_path is configured.
 func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.BasePath == "" {
-		// No base path — serve index.html directly
-		http.ServeFileFS(w, r, webFS, "index.html")
-		return
-	}
-
-	// Read index.html and inject base path
+	// Read index.html and inject runtime path hints.
 	f, err := webFS.Open("index.html")
 	if err != nil {
 		http.Error(w, "index.html not found", http.StatusInternalServerError)
@@ -71,12 +66,49 @@ func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	basePath := strings.TrimRight(s.cfg.BasePath, "/") + "/"
-	injection := fmt.Sprintf(`<base href="%s"><script>window.__BASE_PATH__=%q</script>`, basePath, strings.TrimRight(s.cfg.BasePath, "/"))
+	effectiveBasePath := s.effectiveBasePath()
+	faviconHref := "/favicon.svg"
+	if effectiveBasePath != "" {
+		faviconHref = effectiveBasePath + "/favicon.svg"
+	}
 
-	// Inject after <head>
-	modified := bytes.Replace(data, []byte("<head>"), []byte("<head>"+injection), 1)
+	modified := data
+	// Ensure favicon resolves correctly even with reverse-proxy subpath rewrites.
+	modified = bytes.ReplaceAll(modified, []byte(`href="./favicon.svg"`), []byte(fmt.Sprintf(`href="%s"`, faviconHref)))
+	modified = bytes.ReplaceAll(modified, []byte(`href="/favicon.svg"`), []byte(fmt.Sprintf(`href="%s"`, faviconHref)))
+
+	if effectiveBasePath != "" {
+		basePath := effectiveBasePath + "/"
+		injection := fmt.Sprintf(`<base href="%s"><script>window.__BASE_PATH__=%q</script>`, basePath, effectiveBasePath)
+		// Inject after <head>
+		modified = bytes.Replace(modified, []byte("<head>"), []byte("<head>"+injection), 1)
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(modified)
+}
+
+func (s *Server) effectiveBasePath() string {
+	basePath := strings.TrimSpace(s.cfg.BasePath)
+	if basePath != "" {
+		basePath = "/" + strings.Trim(basePath, "/")
+		if basePath == "/" {
+			return ""
+		}
+		return basePath
+	}
+
+	ext := strings.TrimSpace(s.cfg.ExternalURL)
+	if ext == "" {
+		return ""
+	}
+	u, err := url.Parse(ext)
+	if err != nil {
+		return ""
+	}
+	p := strings.TrimSpace(u.Path)
+	if p == "" || p == "/" {
+		return ""
+	}
+	return "/" + strings.Trim(p, "/")
 }
