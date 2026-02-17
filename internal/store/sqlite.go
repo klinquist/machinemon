@@ -150,15 +150,16 @@ func (s *SQLiteStore) UpsertClient(req models.CheckInRequest, publicIP string) (
 func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	c := &models.Client{}
 	var mutedUntil sql.NullTime
+	var sessionStartedAt sql.NullTime
 	var muteReason sql.NullString
 	var offlineThresholdSecs sql.NullInt64
 	var interfaceIPsJSON string
-	err := s.db.QueryRow(`SELECT id, hostname, custom_name, public_ip, interface_ips, os, arch, client_version, first_seen_at, last_seen_at, COALESCE(session_started_at, datetime('now')),
+	err := s.db.QueryRow(`SELECT id, hostname, custom_name, public_ip, interface_ips, os, arch, client_version, first_seen_at, last_seen_at, session_started_at,
 		is_online, is_deleted, cpu_warn_pct, cpu_crit_pct, mem_warn_pct, mem_crit_pct,
 		disk_warn_pct, disk_crit_pct, offline_threshold_seconds, alerts_muted, muted_until, mute_reason
 		FROM clients WHERE id = ?`, id).Scan(
 		&c.ID, &c.Hostname, &c.CustomName, &c.PublicIP, &interfaceIPsJSON, &c.OS, &c.Arch, &c.ClientVersion,
-		&c.FirstSeenAt, &c.LastSeenAt, &c.SessionStartedAt, &c.IsOnline, &c.IsDeleted,
+		&c.FirstSeenAt, &c.LastSeenAt, &sessionStartedAt, &c.IsOnline, &c.IsDeleted,
 		&c.CPUWarnPct, &c.CPUCritPct, &c.MemWarnPct, &c.MemCritPct,
 		&c.DiskWarnPct, &c.DiskCritPct, &offlineThresholdSecs, &c.AlertsMuted, &mutedUntil, &muteReason)
 	if err == sql.ErrNoRows {
@@ -169,6 +170,11 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	}
 	if mutedUntil.Valid {
 		c.MutedUntil = &mutedUntil.Time
+	}
+	if sessionStartedAt.Valid {
+		c.SessionStartedAt = sessionStartedAt.Time
+	} else {
+		c.SessionStartedAt = time.Now().UTC()
 	}
 	if muteReason.Valid {
 		c.MuteReason = muteReason.String
@@ -183,7 +189,7 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 
 func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 	rows, err := s.db.Query(`SELECT c.id, c.hostname, c.custom_name, c.public_ip, c.interface_ips, c.os, c.arch, c.client_version,
-		c.first_seen_at, c.last_seen_at, COALESCE(c.session_started_at, datetime('now')), c.is_online, c.alerts_muted, c.muted_until,
+		c.first_seen_at, c.last_seen_at, c.session_started_at, c.is_online, c.alerts_muted, c.muted_until,
 		c.cpu_warn_pct, c.cpu_crit_pct, c.mem_warn_pct, c.mem_crit_pct,
 		c.disk_warn_pct, c.disk_crit_pct, c.offline_threshold_seconds,
 		m.cpu_pct, m.mem_pct, m.disk_pct, m.mem_total_bytes, m.mem_used_bytes,
@@ -204,6 +210,7 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 	for rows.Next() {
 		var cwm models.ClientWithMetrics
 		var mutedUntil sql.NullTime
+		var sessionStartedAt sql.NullTime
 		var cpuPct, memPct, diskPct sql.NullFloat64
 		var memTotal, memUsed, diskTotal, diskUsed sql.NullInt64
 		var recordedAt sql.NullTime
@@ -212,7 +219,7 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 
 		err := rows.Scan(
 			&cwm.ID, &cwm.Hostname, &cwm.CustomName, &cwm.PublicIP, &interfaceIPsJSON, &cwm.OS, &cwm.Arch, &cwm.ClientVersion,
-			&cwm.FirstSeenAt, &cwm.LastSeenAt, &cwm.SessionStartedAt, &cwm.IsOnline, &cwm.AlertsMuted, &mutedUntil,
+			&cwm.FirstSeenAt, &cwm.LastSeenAt, &sessionStartedAt, &cwm.IsOnline, &cwm.AlertsMuted, &mutedUntil,
 			&cwm.CPUWarnPct, &cwm.CPUCritPct, &cwm.MemWarnPct, &cwm.MemCritPct,
 			&cwm.DiskWarnPct, &cwm.DiskCritPct, &offlineThresholdSecs,
 			&cpuPct, &memPct, &diskPct, &memTotal, &memUsed,
@@ -224,6 +231,11 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 		}
 		if mutedUntil.Valid {
 			cwm.MutedUntil = &mutedUntil.Time
+		}
+		if sessionStartedAt.Valid {
+			cwm.SessionStartedAt = sessionStartedAt.Time
+		} else {
+			cwm.SessionStartedAt = time.Now().UTC()
 		}
 		if offlineThresholdSecs.Valid {
 			v := int(offlineThresholdSecs.Int64)
