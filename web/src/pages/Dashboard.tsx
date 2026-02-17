@@ -192,7 +192,7 @@ export default function Dashboard() {
                   ) : (
                     <div className="text-sm text-gray-400">No metrics yet</div>
                   )}
-                  <div className="mt-3 grid grid-cols-[auto,1fr,auto] items-center gap-2 text-xs text-gray-400">
+                  <div className="mt-3 grid grid-cols-[max-content_1fr_max-content] items-center gap-2 text-xs text-gray-400">
                     <span className="flex items-center gap-1 whitespace-nowrap">
                       <Clock size={12} /> {timeAgo(client.last_seen_at)}
                     </span>
