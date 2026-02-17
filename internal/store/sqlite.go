@@ -115,14 +115,19 @@ func (s *SQLiteStore) UpsertClient(req models.CheckInRequest, publicIP string) (
 		var isOnline bool
 		var isDeleted bool
 		var oldSessionID sql.NullString
-		err := s.db.QueryRow("SELECT is_online, is_deleted, session_id FROM clients WHERE id = ?", req.ClientID).Scan(&isOnline, &isDeleted, &oldSessionID)
+		var oldSessionStartedAt sql.NullTime
+		err := s.db.QueryRow("SELECT is_online, is_deleted, session_id, session_started_at FROM clients WHERE id = ?", req.ClientID).
+			Scan(&isOnline, &isDeleted, &oldSessionID, &oldSessionStartedAt)
 		if err == nil {
 			// Client exists - update it
 			wasOffline := !isOnline
 			sessionChanged := req.SessionID != "" && oldSessionID.Valid && oldSessionID.String != "" && oldSessionID.String != req.SessionID
 			_, err := s.db.Exec(`UPDATE clients SET hostname = ?, os = ?, arch = ?, client_version = ?,
-				last_seen_at = ?, is_online = 1, is_deleted = 0, session_id = ?, public_ip = ?, interface_ips = ? WHERE id = ?`,
-				req.Hostname, req.OS, req.Arch, req.ClientVersion, now, req.SessionID, publicIP, interfaceIPsJSON, req.ClientID)
+				last_seen_at = ?, is_online = 1, is_deleted = 0, session_id = ?, public_ip = ?, interface_ips = ?,
+				session_started_at = CASE WHEN ? THEN ? ELSE COALESCE(session_started_at, ?) END
+				WHERE id = ?`,
+				req.Hostname, req.OS, req.Arch, req.ClientVersion, now, req.SessionID, publicIP, interfaceIPsJSON,
+				sessionChanged, now, now, req.ClientID)
 			if err != nil {
 				return "", false, false, fmt.Errorf("update client: %w", err)
 			}
@@ -133,9 +138,9 @@ func (s *SQLiteStore) UpsertClient(req models.CheckInRequest, publicIP string) (
 
 	// Create new client
 	id := uuid.New().String()
-	_, err := s.db.Exec(`INSERT INTO clients (id, hostname, os, arch, client_version, first_seen_at, last_seen_at, is_online, session_id, public_ip, interface_ips)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-		id, req.Hostname, req.OS, req.Arch, req.ClientVersion, now, now, req.SessionID, publicIP, interfaceIPsJSON)
+	_, err := s.db.Exec(`INSERT INTO clients (id, hostname, os, arch, client_version, first_seen_at, last_seen_at, session_started_at, is_online, session_id, public_ip, interface_ips)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+		id, req.Hostname, req.OS, req.Arch, req.ClientVersion, now, now, now, req.SessionID, publicIP, interfaceIPsJSON)
 	if err != nil {
 		return "", false, false, fmt.Errorf("insert client: %w", err)
 	}
@@ -148,12 +153,12 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 	var muteReason sql.NullString
 	var offlineThresholdSecs sql.NullInt64
 	var interfaceIPsJSON string
-	err := s.db.QueryRow(`SELECT id, hostname, custom_name, public_ip, interface_ips, os, arch, client_version, first_seen_at, last_seen_at,
+	err := s.db.QueryRow(`SELECT id, hostname, custom_name, public_ip, interface_ips, os, arch, client_version, first_seen_at, last_seen_at, COALESCE(session_started_at, datetime('now')),
 		is_online, is_deleted, cpu_warn_pct, cpu_crit_pct, mem_warn_pct, mem_crit_pct,
 		disk_warn_pct, disk_crit_pct, offline_threshold_seconds, alerts_muted, muted_until, mute_reason
 		FROM clients WHERE id = ?`, id).Scan(
 		&c.ID, &c.Hostname, &c.CustomName, &c.PublicIP, &interfaceIPsJSON, &c.OS, &c.Arch, &c.ClientVersion,
-		&c.FirstSeenAt, &c.LastSeenAt, &c.IsOnline, &c.IsDeleted,
+		&c.FirstSeenAt, &c.LastSeenAt, &c.SessionStartedAt, &c.IsOnline, &c.IsDeleted,
 		&c.CPUWarnPct, &c.CPUCritPct, &c.MemWarnPct, &c.MemCritPct,
 		&c.DiskWarnPct, &c.DiskCritPct, &offlineThresholdSecs, &c.AlertsMuted, &mutedUntil, &muteReason)
 	if err == sql.ErrNoRows {
@@ -178,7 +183,7 @@ func (s *SQLiteStore) GetClient(id string) (*models.Client, error) {
 
 func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 	rows, err := s.db.Query(`SELECT c.id, c.hostname, c.custom_name, c.public_ip, c.interface_ips, c.os, c.arch, c.client_version,
-		c.first_seen_at, c.last_seen_at, c.is_online, c.alerts_muted, c.muted_until,
+		c.first_seen_at, c.last_seen_at, COALESCE(c.session_started_at, datetime('now')), c.is_online, c.alerts_muted, c.muted_until,
 		c.cpu_warn_pct, c.cpu_crit_pct, c.mem_warn_pct, c.mem_crit_pct,
 		c.disk_warn_pct, c.disk_crit_pct, c.offline_threshold_seconds,
 		m.cpu_pct, m.mem_pct, m.disk_pct, m.mem_total_bytes, m.mem_used_bytes,
@@ -207,7 +212,7 @@ func (s *SQLiteStore) ListClients() ([]models.ClientWithMetrics, error) {
 
 		err := rows.Scan(
 			&cwm.ID, &cwm.Hostname, &cwm.CustomName, &cwm.PublicIP, &interfaceIPsJSON, &cwm.OS, &cwm.Arch, &cwm.ClientVersion,
-			&cwm.FirstSeenAt, &cwm.LastSeenAt, &cwm.IsOnline, &cwm.AlertsMuted, &mutedUntil,
+			&cwm.FirstSeenAt, &cwm.LastSeenAt, &cwm.SessionStartedAt, &cwm.IsOnline, &cwm.AlertsMuted, &mutedUntil,
 			&cwm.CPUWarnPct, &cwm.CPUCritPct, &cwm.MemWarnPct, &cwm.MemCritPct,
 			&cwm.DiskWarnPct, &cwm.DiskCritPct, &offlineThresholdSecs,
 			&cpuPct, &memPct, &diskPct, &memTotal, &memUsed,
@@ -551,22 +556,36 @@ func (s *SQLiteStore) InsertProcessSnapshots(clientID string, procs []models.Pro
 	if err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare(`INSERT INTO process_snapshots (client_id, friendly_name, is_running, pid, cpu_pct, mem_pct, cmdline)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	defer tx.Rollback()
+
+	previous, err := getLatestProcessSnapshotStatesTx(tx, clientID)
 	if err != nil {
-		tx.Rollback()
+		return err
+	}
+
+	stmt, err := tx.Prepare(`INSERT INTO process_snapshots (client_id, friendly_name, is_running, pid, cpu_pct, mem_pct, cmdline, uptime_since_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
+	now := time.Now().UTC()
 	for _, p := range procs {
-		var pid interface{}
-		if p.PID > 0 {
-			pid = p.PID
+		pidPtr := pidPointer(p.PID)
+		uptimeSince := now
+		if prev, ok := previous[p.FriendlyName]; ok {
+			if prev.IsRunning == p.IsRunning && pidEqual(prev.PID, pidPtr) && prev.UptimeSinceAt.Valid {
+				uptimeSince = prev.UptimeSinceAt.Time.UTC()
+			}
 		}
-		_, err := stmt.Exec(clientID, p.FriendlyName, p.IsRunning, pid, p.CPUPercent, p.MemPercent, p.Cmdline)
+
+		var pid interface{}
+		if pidPtr != nil {
+			pid = *pidPtr
+		}
+		_, err := stmt.Exec(clientID, p.FriendlyName, p.IsRunning, pid, p.CPUPercent, p.MemPercent, p.Cmdline, uptimeSince)
 		if err != nil {
-			tx.Rollback()
 			return err
 		}
 	}
@@ -575,7 +594,7 @@ func (s *SQLiteStore) InsertProcessSnapshots(clientID string, procs []models.Pro
 
 func (s *SQLiteStore) GetLatestProcessSnapshots(clientID string) ([]models.ProcessSnapshot, error) {
 	rows, err := s.db.Query(`SELECT ps.id, ps.client_id, ps.friendly_name, ps.recorded_at,
-		ps.is_running, ps.pid, ps.cpu_pct, ps.mem_pct, ps.cmdline
+		ps.uptime_since_at, ps.is_running, ps.pid, ps.cpu_pct, ps.mem_pct, ps.cmdline
 		FROM process_snapshots ps
 		INNER JOIN watched_processes wp ON wp.client_id = ps.client_id AND wp.friendly_name = ps.friendly_name
 		INNER JOIN (
@@ -596,7 +615,7 @@ func (s *SQLiteStore) GetLatestProcessSnapshots(clientID string) ([]models.Proce
 func (s *SQLiteStore) GetPreviousProcessSnapshots(clientID string) ([]models.ProcessSnapshot, error) {
 	// Get the second-most-recent snapshot for each process
 	rows, err := s.db.Query(`SELECT ps.id, ps.client_id, ps.friendly_name, ps.recorded_at,
-		ps.is_running, ps.pid, ps.cpu_pct, ps.mem_pct, ps.cmdline
+		ps.uptime_since_at, ps.is_running, ps.pid, ps.cpu_pct, ps.mem_pct, ps.cmdline
 		FROM process_snapshots ps
 		INNER JOIN watched_processes wp ON wp.client_id = ps.client_id AND wp.friendly_name = ps.friendly_name
 		INNER JOIN (
@@ -642,12 +661,18 @@ func scanProcessSnapshots(rows *sql.Rows) ([]models.ProcessSnapshot, error) {
 	for rows.Next() {
 		var ps models.ProcessSnapshot
 		var pid sql.NullInt32
+		var uptimeSince sql.NullTime
 		var cpuPct, memPct sql.NullFloat64
 		var cmdline sql.NullString
 		err := rows.Scan(&ps.ID, &ps.ClientID, &ps.FriendlyName, &ps.RecordedAt,
-			&ps.IsRunning, &pid, &cpuPct, &memPct, &cmdline)
+			&uptimeSince, &ps.IsRunning, &pid, &cpuPct, &memPct, &cmdline)
 		if err != nil {
 			return nil, err
+		}
+		if uptimeSince.Valid {
+			ps.UptimeSinceAt = uptimeSince.Time
+		} else {
+			ps.UptimeSinceAt = ps.RecordedAt
 		}
 		if pid.Valid {
 			v := pid.Int32
@@ -661,6 +686,59 @@ func scanProcessSnapshots(rows *sql.Rows) ([]models.ProcessSnapshot, error) {
 	return snaps, rows.Err()
 }
 
+type processSnapshotState struct {
+	IsRunning     bool
+	PID           *int32
+	UptimeSinceAt sql.NullTime
+}
+
+func getLatestProcessSnapshotStatesTx(tx *sql.Tx, clientID string) (map[string]processSnapshotState, error) {
+	rows, err := tx.Query(`SELECT ps.friendly_name, ps.is_running, ps.pid, ps.uptime_since_at
+		FROM process_snapshots ps
+		INNER JOIN (
+			SELECT friendly_name, MAX(recorded_at) as max_time
+			FROM process_snapshots
+			WHERE client_id = ?
+			GROUP BY friendly_name
+		) latest ON ps.friendly_name = latest.friendly_name AND ps.recorded_at = latest.max_time
+		WHERE ps.client_id = ?`, clientID, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	states := make(map[string]processSnapshotState)
+	for rows.Next() {
+		var name string
+		var state processSnapshotState
+		var pid sql.NullInt32
+		if err := rows.Scan(&name, &state.IsRunning, &pid, &state.UptimeSinceAt); err != nil {
+			return nil, err
+		}
+		if pid.Valid {
+			v := pid.Int32
+			state.PID = &v
+		}
+		states[name] = state
+	}
+	return states, rows.Err()
+}
+
+func pidPointer(pid int32) *int32 {
+	if pid <= 0 {
+		return nil
+	}
+	v := pid
+	return &v
+}
+
+func pidEqual(a, b *int32) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
 // --- Checks (extensible typed check system) ---
 
 func (s *SQLiteStore) InsertCheckSnapshots(clientID string, checks []models.CheckPayload) error {
@@ -671,18 +749,31 @@ func (s *SQLiteStore) InsertCheckSnapshots(clientID string, checks []models.Chec
 	if err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare(`INSERT INTO check_snapshots (client_id, friendly_name, check_type, healthy, message, state)
-		VALUES (?, ?, ?, ?, ?, ?)`)
+	defer tx.Rollback()
+
+	previous, err := getLatestCheckSnapshotStatesTx(tx, clientID)
 	if err != nil {
-		tx.Rollback()
+		return err
+	}
+
+	stmt, err := tx.Prepare(`INSERT INTO check_snapshots (client_id, friendly_name, check_type, healthy, message, state, uptime_since_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
+	now := time.Now().UTC()
 	for _, c := range checks {
-		_, err := stmt.Exec(clientID, c.FriendlyName, c.CheckType, c.Healthy, c.Message, c.State)
+		uptimeSince := now
+		key := checkSnapshotKey(c.FriendlyName, c.CheckType)
+		if prev, ok := previous[key]; ok {
+			if prev.Healthy == c.Healthy && prev.UptimeSinceAt.Valid {
+				uptimeSince = prev.UptimeSinceAt.Time.UTC()
+			}
+		}
+		_, err := stmt.Exec(clientID, c.FriendlyName, c.CheckType, c.Healthy, c.Message, c.State, uptimeSince)
 		if err != nil {
-			tx.Rollback()
 			return err
 		}
 	}
@@ -691,13 +782,13 @@ func (s *SQLiteStore) InsertCheckSnapshots(clientID string, checks []models.Chec
 
 func (s *SQLiteStore) GetLatestCheckSnapshots(clientID string) ([]models.CheckSnapshot, error) {
 	rows, err := s.db.Query(`SELECT cs.id, cs.client_id, cs.friendly_name, cs.check_type,
-		cs.recorded_at, cs.healthy, cs.message, cs.state
+		cs.recorded_at, cs.uptime_since_at, cs.healthy, cs.message, cs.state
 		FROM check_snapshots cs
 		INNER JOIN (
-			SELECT friendly_name, MAX(recorded_at) as max_time
+			SELECT friendly_name, check_type, MAX(recorded_at) as max_time
 			FROM check_snapshots WHERE client_id = ?
-			GROUP BY friendly_name
-		) latest ON cs.friendly_name = latest.friendly_name AND cs.recorded_at = latest.max_time
+			GROUP BY friendly_name, check_type
+		) latest ON cs.friendly_name = latest.friendly_name AND cs.check_type = latest.check_type AND cs.recorded_at = latest.max_time
 		WHERE cs.client_id = ?`, clientID, clientID)
 	if err != nil {
 		return nil, err
@@ -708,16 +799,16 @@ func (s *SQLiteStore) GetLatestCheckSnapshots(clientID string) ([]models.CheckSn
 
 func (s *SQLiteStore) GetPreviousCheckSnapshots(clientID string) ([]models.CheckSnapshot, error) {
 	rows, err := s.db.Query(`SELECT cs.id, cs.client_id, cs.friendly_name, cs.check_type,
-		cs.recorded_at, cs.healthy, cs.message, cs.state
+		cs.recorded_at, cs.uptime_since_at, cs.healthy, cs.message, cs.state
 		FROM check_snapshots cs
 		INNER JOIN (
-			SELECT friendly_name, MAX(recorded_at) as max_time
+			SELECT friendly_name, check_type, MAX(recorded_at) as max_time
 			FROM check_snapshots
 			WHERE client_id = ? AND recorded_at < (
 				SELECT MAX(recorded_at) FROM check_snapshots WHERE client_id = ?
 			)
-			GROUP BY friendly_name
-		) prev ON cs.friendly_name = prev.friendly_name AND cs.recorded_at = prev.max_time
+			GROUP BY friendly_name, check_type
+		) prev ON cs.friendly_name = prev.friendly_name AND cs.check_type = prev.check_type AND cs.recorded_at = prev.max_time
 		WHERE cs.client_id = ?`, clientID, clientID, clientID)
 	if err != nil {
 		return nil, err
@@ -730,17 +821,59 @@ func scanCheckSnapshots(rows *sql.Rows) ([]models.CheckSnapshot, error) {
 	var snaps []models.CheckSnapshot
 	for rows.Next() {
 		var cs models.CheckSnapshot
+		var uptimeSince sql.NullTime
 		var message, state sql.NullString
 		err := rows.Scan(&cs.ID, &cs.ClientID, &cs.FriendlyName, &cs.CheckType,
-			&cs.RecordedAt, &cs.Healthy, &message, &state)
+			&cs.RecordedAt, &uptimeSince, &cs.Healthy, &message, &state)
 		if err != nil {
 			return nil, err
+		}
+		if uptimeSince.Valid {
+			cs.UptimeSinceAt = uptimeSince.Time
+		} else {
+			cs.UptimeSinceAt = cs.RecordedAt
 		}
 		cs.Message = message.String
 		cs.State = state.String
 		snaps = append(snaps, cs)
 	}
 	return snaps, rows.Err()
+}
+
+type checkSnapshotState struct {
+	Healthy       bool
+	UptimeSinceAt sql.NullTime
+}
+
+func getLatestCheckSnapshotStatesTx(tx *sql.Tx, clientID string) (map[string]checkSnapshotState, error) {
+	rows, err := tx.Query(`SELECT cs.friendly_name, cs.check_type, cs.healthy, cs.uptime_since_at
+		FROM check_snapshots cs
+		INNER JOIN (
+			SELECT friendly_name, check_type, MAX(recorded_at) as max_time
+			FROM check_snapshots
+			WHERE client_id = ?
+			GROUP BY friendly_name, check_type
+		) latest ON cs.friendly_name = latest.friendly_name AND cs.check_type = latest.check_type AND cs.recorded_at = latest.max_time
+		WHERE cs.client_id = ?`, clientID, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	states := make(map[string]checkSnapshotState)
+	for rows.Next() {
+		var friendlyName, checkType string
+		var state checkSnapshotState
+		if err := rows.Scan(&friendlyName, &checkType, &state.Healthy, &state.UptimeSinceAt); err != nil {
+			return nil, err
+		}
+		states[checkSnapshotKey(friendlyName, checkType)] = state
+	}
+	return states, rows.Err()
+}
+
+func checkSnapshotKey(friendlyName, checkType string) string {
+	return strings.TrimSpace(friendlyName) + "::" + strings.TrimSpace(checkType)
 }
 
 // --- Alerts ---

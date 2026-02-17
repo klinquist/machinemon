@@ -9,6 +9,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV4,
 	migrateV5,
 	migrateV6,
+	migrateV7,
 }
 
 func migrateV1(tx *sql.Tx) error {
@@ -154,4 +155,21 @@ func migrateV5(tx *sql.Tx) error {
 func migrateV6(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE clients ADD COLUMN offline_threshold_seconds INTEGER`)
 	return err
+}
+
+func migrateV7(tx *sql.Tx) error {
+	stmts := []string{
+		`ALTER TABLE clients ADD COLUMN session_started_at DATETIME`,
+		`UPDATE clients SET session_started_at = datetime('now') WHERE session_started_at IS NULL`,
+		`ALTER TABLE process_snapshots ADD COLUMN uptime_since_at DATETIME`,
+		`UPDATE process_snapshots SET uptime_since_at = datetime('now') WHERE uptime_since_at IS NULL`,
+		`ALTER TABLE check_snapshots ADD COLUMN uptime_since_at DATETIME`,
+		`UPDATE check_snapshots SET uptime_since_at = datetime('now') WHERE uptime_since_at IS NULL`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }

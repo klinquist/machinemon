@@ -9,6 +9,7 @@ export interface Client {
   client_version: string;
   first_seen_at: string;
   last_seen_at: string;
+  session_started_at: string;
   is_online: boolean;
   alerts_muted: boolean;
   muted_until: string | null;
@@ -33,6 +34,7 @@ export interface ClientWithMetrics {
   client_version: string;
   first_seen_at: string;
   last_seen_at: string;
+  session_started_at: string;
   is_online: boolean;
   alerts_muted: boolean;
   muted_until: string | null;
@@ -60,6 +62,7 @@ export interface ProcessSnapshot {
   mem_pct: number;
   cmdline: string;
   recorded_at: string;
+  uptime_since_at: string;
 }
 
 export interface CheckSnapshot {
@@ -69,6 +72,7 @@ export interface CheckSnapshot {
   message: string;
   state: string;  // JSON blob with type-specific details
   recorded_at: string;
+  uptime_since_at: string;
 }
 
 export interface ClientAlertMute {

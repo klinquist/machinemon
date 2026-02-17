@@ -100,18 +100,19 @@ type ClientAlertMute struct {
 
 // Client represents a monitored machine.
 type Client struct {
-	ID            string    `json:"id"`
-	Hostname      string    `json:"hostname"`
-	CustomName    string    `json:"custom_name,omitempty"`
-	PublicIP      string    `json:"public_ip,omitempty"`
-	InterfaceIPs  []string  `json:"interface_ips,omitempty"`
-	OS            string    `json:"os"`
-	Arch          string    `json:"arch"`
-	ClientVersion string    `json:"client_version"`
-	FirstSeenAt   time.Time `json:"first_seen_at"`
-	LastSeenAt    time.Time `json:"last_seen_at"`
-	IsOnline      bool      `json:"is_online"`
-	IsDeleted     bool      `json:"is_deleted,omitempty"`
+	ID               string    `json:"id"`
+	Hostname         string    `json:"hostname"`
+	CustomName       string    `json:"custom_name,omitempty"`
+	PublicIP         string    `json:"public_ip,omitempty"`
+	InterfaceIPs     []string  `json:"interface_ips,omitempty"`
+	OS               string    `json:"os"`
+	Arch             string    `json:"arch"`
+	ClientVersion    string    `json:"client_version"`
+	FirstSeenAt      time.Time `json:"first_seen_at"`
+	LastSeenAt       time.Time `json:"last_seen_at"`
+	SessionStartedAt time.Time `json:"session_started_at"`
+	IsOnline         bool      `json:"is_online"`
+	IsDeleted        bool      `json:"is_deleted,omitempty"`
 
 	CPUWarnPct  *float64 `json:"cpu_warn_pct,omitempty"`
 	CPUCritPct  *float64 `json:"cpu_crit_pct,omitempty"`
@@ -159,15 +160,16 @@ type WatchedProcess struct {
 
 // ProcessSnapshot is a point-in-time status of a watched process.
 type ProcessSnapshot struct {
-	ID           int64     `json:"id,omitempty"`
-	ClientID     string    `json:"client_id,omitempty"`
-	FriendlyName string    `json:"friendly_name"`
-	RecordedAt   time.Time `json:"recorded_at"`
-	IsRunning    bool      `json:"is_running"`
-	PID          *int32    `json:"pid,omitempty"`
-	CPUPercent   float64   `json:"cpu_pct,omitempty"`
-	MemPercent   float64   `json:"mem_pct,omitempty"`
-	Cmdline      string    `json:"cmdline,omitempty"`
+	ID            int64     `json:"id,omitempty"`
+	ClientID      string    `json:"client_id,omitempty"`
+	FriendlyName  string    `json:"friendly_name"`
+	RecordedAt    time.Time `json:"recorded_at"`
+	UptimeSinceAt time.Time `json:"uptime_since_at"`
+	IsRunning     bool      `json:"is_running"`
+	PID           *int32    `json:"pid,omitempty"`
+	CPUPercent    float64   `json:"cpu_pct,omitempty"`
+	MemPercent    float64   `json:"mem_pct,omitempty"`
+	Cmdline       string    `json:"cmdline,omitempty"`
 }
 
 // CheckSnapshot is a point-in-time result of any typed client check.
@@ -175,14 +177,15 @@ type ProcessSnapshot struct {
 // without schema changes. The server only needs to look at Healthy for
 // alerting -- State is preserved for display/debugging.
 type CheckSnapshot struct {
-	ID           int64     `json:"id,omitempty"`
-	ClientID     string    `json:"client_id,omitempty"`
-	FriendlyName string    `json:"friendly_name"`
-	CheckType    string    `json:"check_type"`
-	RecordedAt   time.Time `json:"recorded_at"`
-	Healthy      bool      `json:"healthy"`
-	Message      string    `json:"message,omitempty"`
-	State        string    `json:"state,omitempty"` // JSON blob, type-specific
+	ID            int64     `json:"id,omitempty"`
+	ClientID      string    `json:"client_id,omitempty"`
+	FriendlyName  string    `json:"friendly_name"`
+	CheckType     string    `json:"check_type"`
+	RecordedAt    time.Time `json:"recorded_at"`
+	UptimeSinceAt time.Time `json:"uptime_since_at"`
+	Healthy       bool      `json:"healthy"`
+	Message       string    `json:"message,omitempty"`
+	State         string    `json:"state,omitempty"` // JSON blob, type-specific
 }
 
 // Alert types.

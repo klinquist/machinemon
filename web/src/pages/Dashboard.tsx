@@ -14,6 +14,36 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+function formatFriendlyDuration(dateStr: string): string {
+  const since = new Date(dateStr).getTime();
+  if (Number.isNaN(since)) return '-';
+  let seconds = Math.max(0, Math.floor((Date.now() - since) / 1000));
+  const units = [
+    { label: 'year', secs: 365 * 24 * 60 * 60 },
+    { label: 'day', secs: 24 * 60 * 60 },
+    { label: 'hour', secs: 60 * 60 },
+    { label: 'minute', secs: 60 },
+    { label: 'second', secs: 1 },
+  ];
+  const parts: string[] = [];
+  for (const unit of units) {
+    if (parts.length >= 2) break;
+    if (seconds < unit.secs) continue;
+    const count = Math.floor(seconds / unit.secs);
+    seconds -= count * unit.secs;
+    parts.push(`${count} ${unit.label}${count === 1 ? '' : 's'}`);
+  }
+  if (parts.length === 0) return '0 seconds';
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} and ${parts[1]}`;
+}
+
+function isoTooltip(dateStr: string): string {
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return dateStr;
+  return parsed.toISOString();
+}
+
 function clientLabel(client: ClientWithMetrics): string {
   return client.custom_name?.trim() || client.hostname;
 }
@@ -163,9 +193,12 @@ export default function Dashboard() {
                   ) : (
                     <div className="text-sm text-gray-400">No metrics yet</div>
                   )}
-                  <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
                     <span className="flex items-center gap-1">
                       <Clock size={12} /> {timeAgo(client.last_seen_at)}
+                    </span>
+                    <span title={isoTooltip(client.session_started_at)}>
+                      Uptime: {formatFriendlyDuration(client.session_started_at)}
                     </span>
                     {client.process_count > 0 && (
                       <span>{client.process_count} process{client.process_count !== 1 ? 'es' : ''}</span>

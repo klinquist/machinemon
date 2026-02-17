@@ -15,6 +15,36 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
+function formatFriendlyDuration(dateStr: string): string {
+  const since = new Date(dateStr).getTime();
+  if (Number.isNaN(since)) return '-';
+  let seconds = Math.max(0, Math.floor((Date.now() - since) / 1000));
+  const units = [
+    { label: 'year', secs: 365 * 24 * 60 * 60 },
+    { label: 'day', secs: 24 * 60 * 60 },
+    { label: 'hour', secs: 60 * 60 },
+    { label: 'minute', secs: 60 },
+    { label: 'second', secs: 1 },
+  ];
+  const parts: string[] = [];
+  for (const unit of units) {
+    if (parts.length >= 2) break;
+    if (seconds < unit.secs) continue;
+    const count = Math.floor(seconds / unit.secs);
+    seconds -= count * unit.secs;
+    parts.push(`${count} ${unit.label}${count === 1 ? '' : 's'}`);
+  }
+  if (parts.length === 0) return '0 seconds';
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} and ${parts[1]}`;
+}
+
+function isoTooltip(dateStr: string): string {
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return dateStr;
+  return parsed.toISOString();
+}
+
 const FALLBACK_THRESHOLDS: Thresholds = {
   cpu_warn_pct: 80,
   cpu_crit_pct: 95,
@@ -321,7 +351,7 @@ export default function ClientDetail() {
         <div className="bg-white rounded-lg border p-4 mb-6">
           <h2 className="font-semibold text-gray-700 mb-3">Watched Processes &amp; Checks</h2>
           <div className="overflow-x-auto -mx-1 px-1">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr className="text-left text-gray-500 border-b">
                   <th className="pb-2">Name</th>
@@ -330,6 +360,7 @@ export default function ClientDetail() {
                   <th className="pb-2">PID</th>
                   <th className="pb-2">CPU</th>
                   <th className="pb-2">Memory</th>
+                  <th className="pb-2">Uptime</th>
                   <th className="pb-2 text-right">Actions</th>
                 </tr>
               </thead>
@@ -346,6 +377,9 @@ export default function ClientDetail() {
                     <td className="py-2 text-gray-500 font-mono">{p.pid || '-'}</td>
                     <td className="py-2 text-gray-500">{p.cpu_pct?.toFixed(1)}%</td>
                     <td className="py-2 text-gray-500">{p.mem_pct?.toFixed(1)}%</td>
+                    <td className="py-2 text-gray-500" title={isoTooltip(p.uptime_since_at)}>
+                      {formatFriendlyDuration(p.uptime_since_at)}
+                    </td>
                     <td className="py-2 text-right">
                       <button
                         onClick={() => handleToggleScopedMute('process', p.friendly_name)}
@@ -369,7 +403,7 @@ export default function ClientDetail() {
                   </tr>
                 ))}
                 {checks.map(c => (
-                  <tr key={`check:${c.friendly_name}`} className="border-b last:border-0">
+                  <tr key={`check:${c.friendly_name}:${c.check_type}`} className="border-b last:border-0">
                     <td className="py-2 font-medium">{c.friendly_name}</td>
                     <td className="py-2 text-gray-500">check ({c.check_type})</td>
                     <td className="py-2">
@@ -380,6 +414,9 @@ export default function ClientDetail() {
                     <td className="py-2 text-gray-400">-</td>
                     <td className="py-2 text-gray-400">-</td>
                     <td className="py-2 text-gray-400">-</td>
+                    <td className="py-2 text-gray-500" title={isoTooltip(c.uptime_since_at)}>
+                      {formatFriendlyDuration(c.uptime_since_at)}
+                    </td>
                     <td className="py-2 text-right">
                       <button
                         onClick={() => handleToggleScopedMute('check', checkMuteTarget(c.friendly_name, c.check_type))}

@@ -291,14 +291,14 @@ func (e *Engine) checkChecks(clientID, hostname string, mutes scopedMuteState) {
 
 	prevMap := make(map[string]models.CheckSnapshot)
 	for _, cs := range previous {
-		prevMap[cs.FriendlyName] = cs
+		prevMap[checkMuteTarget(cs.FriendlyName, cs.CheckType)] = cs
 	}
 
 	for _, curr := range current {
 		if mutes.checks[checkMuteTarget(curr.FriendlyName, curr.CheckType)] {
 			continue
 		}
-		prev, exists := prevMap[curr.FriendlyName]
+		prev, exists := prevMap[checkMuteTarget(curr.FriendlyName, curr.CheckType)]
 
 		if !curr.Healthy {
 			// Only alert if it was previously healthy or is first time failing
