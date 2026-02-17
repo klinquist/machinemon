@@ -23,7 +23,6 @@ function formatFriendlyDuration(dateStr: string): string {
     { label: 'day', secs: 24 * 60 * 60 },
     { label: 'hour', secs: 60 * 60 },
     { label: 'minute', secs: 60 },
-    { label: 'second', secs: 1 },
   ];
   const parts: string[] = [];
   for (const unit of units) {
@@ -33,7 +32,7 @@ function formatFriendlyDuration(dateStr: string): string {
     seconds -= count * unit.secs;
     parts.push(`${count} ${unit.label}${count === 1 ? '' : 's'}`);
   }
-  if (parts.length === 0) return '0 seconds';
+  if (parts.length === 0) return 'less than a minute';
   if (parts.length === 1) return parts[0];
   return `${parts[0]} and ${parts[1]}`;
 }
