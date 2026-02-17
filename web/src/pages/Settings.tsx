@@ -23,6 +23,11 @@ export default function Settings() {
     if (!Number.isFinite(secs) || secs <= 0) return 4;
     return Math.max(1, Math.round(secs / 60));
   })();
+  const metricConsecutiveCheckins = (() => {
+    const raw = Number(settings['metric_consecutive_checkins_default'] || '1');
+    if (!Number.isFinite(raw) || raw <= 0) return 1;
+    return Math.max(1, Math.round(raw));
+  })();
 
   const loadData = async () => {
     try {
@@ -183,6 +188,23 @@ export default function Settings() {
           />
           <p className="text-xs text-gray-500 mt-1">
             Clients alert offline after this many minutes with no check-in (global default).
+          </p>
+        </div>
+        <div className="mt-4">
+          <label className="block text-sm text-gray-600 mb-1">Metric Alert Delay (check-ins)</label>
+          <input
+            type="number"
+            min={1}
+            value={metricConsecutiveCheckins}
+            onChange={e => {
+              const count = Math.max(1, Number(e.target.value) || 1);
+              setSettings({ ...settings, metric_consecutive_checkins_default: String(count) });
+            }}
+            className="w-full max-w-xs px-3 py-1.5 border rounded text-sm"
+            placeholder="1"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            CPU, memory, and disk alerts fire only after this many consecutive check-ins above threshold.
           </p>
         </div>
         <div className="mt-4">

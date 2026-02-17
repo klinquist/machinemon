@@ -122,6 +122,9 @@ type Client struct {
 	DiskCritPct *float64 `json:"disk_crit_pct,omitempty"`
 	// Per-client offline alert delay override (seconds). Nil means use global default.
 	OfflineThresholdSeconds *int `json:"offline_threshold_seconds,omitempty"`
+	// Optional per-client override for metric alert streak length.
+	// Nil means use global default.
+	MetricConsecutiveCheckins *int `json:"metric_consecutive_checkins,omitempty"`
 
 	AlertsMuted bool       `json:"alerts_muted"`
 	MutedUntil  *time.Time `json:"muted_until,omitempty"`
@@ -257,6 +260,9 @@ type Thresholds struct {
 	// Optional per-client offline alert delay override in minutes.
 	// Nil means keep current value; use clear-thresholds endpoint to reset to global.
 	OfflineThresholdMinutes *int `json:"offline_threshold_minutes,omitempty"`
+	// Optional per-client override: number of consecutive check-ins above threshold
+	// required before metric alerts fire.
+	MetricConsecutiveCheckins *int `json:"metric_consecutive_checkins,omitempty"`
 }
 
 // Default thresholds if nothing else is configured.

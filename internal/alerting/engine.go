@@ -147,20 +147,22 @@ func (e *Engine) evaluateCheckIn(clientID string) {
 	}
 
 	// 2. Threshold checks
-	latest, err := e.store.GetLatestMetrics(clientID)
-	if err != nil || latest == nil {
+	consecutiveRequired := e.resolveMetricConsecutiveCheckins(client)
+	recentMetrics, err := e.store.GetRecentMetrics(clientID, consecutiveRequired)
+	if err != nil || len(recentMetrics) == 0 {
 		return
 	}
+	latest := recentMetrics[0]
 
 	thresholds := e.resolveThresholds(client)
 	if !scopedMutes.metrics["cpu"] {
-		e.checkThreshold(clientID, hostLabel, "cpu", latest.CPUPercent, thresholds.CPUWarnPct, thresholds.CPUCritPct)
+		e.checkThreshold(clientID, hostLabel, "cpu", latest.CPUPercent, thresholds.CPUWarnPct, thresholds.CPUCritPct, recentMetrics, consecutiveRequired)
 	}
 	if !scopedMutes.metrics["mem"] {
-		e.checkThreshold(clientID, hostLabel, "mem", latest.MemPercent, thresholds.MemWarnPct, thresholds.MemCritPct)
+		e.checkThreshold(clientID, hostLabel, "mem", latest.MemPercent, thresholds.MemWarnPct, thresholds.MemCritPct, recentMetrics, consecutiveRequired)
 	}
 	if !scopedMutes.metrics["disk"] {
-		e.checkThreshold(clientID, hostLabel, "disk", latest.DiskPercent, thresholds.DiskWarnPct, thresholds.DiskCritPct)
+		e.checkThreshold(clientID, hostLabel, "disk", latest.DiskPercent, thresholds.DiskWarnPct, thresholds.DiskCritPct, recentMetrics, consecutiveRequired)
 	}
 
 	// 3. Process checks
@@ -216,7 +218,20 @@ func (e *Engine) resolveThresholds(client *models.Client) models.Thresholds {
 	return t
 }
 
-func (e *Engine) checkThreshold(clientID, hostname, metric string, value, warnPct, critPct float64) {
+func (e *Engine) resolveMetricConsecutiveCheckins(client *models.Client) int {
+	required := 1
+	if raw, _ := e.store.GetSetting("metric_consecutive_checkins_default"); raw != "" {
+		if parsed, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && parsed > 0 {
+			required = parsed
+		}
+	}
+	if client.MetricConsecutiveCheckins != nil && *client.MetricConsecutiveCheckins > 0 {
+		required = *client.MetricConsecutiveCheckins
+	}
+	return required
+}
+
+func (e *Engine) checkThreshold(clientID, hostname, metric string, value, warnPct, critPct float64, recent []models.Metric, consecutiveRequired int) {
 	warnType := metric + "_warn"
 	critType := metric + "_crit"
 	recoverType := metric + "_recover"
@@ -224,15 +239,17 @@ func (e *Engine) checkThreshold(clientID, hostname, metric string, value, warnPc
 	lastAlert, _ := e.store.GetLastAlertByTypes(clientID, warnType, critType, recoverType)
 
 	metricLabel := strings.ToUpper(metric)
+	critStreak := consecutiveThresholdStreak(recent, metric, critPct)
+	warnStreak := consecutiveThresholdStreak(recent, metric, warnPct)
 
 	if value >= critPct {
-		if lastAlert == nil || lastAlert.AlertType != critType {
+		if critStreak >= consecutiveRequired && (lastAlert == nil || lastAlert.AlertType != critType) {
 			e.fireAlert(clientID, critType, models.SeverityCritical,
 				fmt.Sprintf("%s at %.1f%% on '%s' (critical threshold: %.1f%%)",
 					metricLabel, value, hostname, critPct))
 		}
 	} else if value >= warnPct {
-		if lastAlert == nil || lastAlert.AlertType != warnType {
+		if warnStreak >= consecutiveRequired && (lastAlert == nil || lastAlert.AlertType != warnType) {
 			e.fireAlert(clientID, warnType, models.SeverityWarning,
 				fmt.Sprintf("%s at %.1f%% on '%s' (warning threshold: %.1f%%)",
 					metricLabel, value, hostname, warnPct))
@@ -241,6 +258,31 @@ func (e *Engine) checkThreshold(clientID, hostname, metric string, value, warnPc
 		e.fireAlert(clientID, recoverType, models.SeverityInfo,
 			fmt.Sprintf("%s recovered to %.1f%% on '%s'",
 				metricLabel, value, hostname))
+	}
+}
+
+func consecutiveThresholdStreak(recent []models.Metric, metric string, threshold float64) int {
+	streak := 0
+	for _, m := range recent {
+		value := metricValue(m, metric)
+		if value < threshold {
+			break
+		}
+		streak++
+	}
+	return streak
+}
+
+func metricValue(m models.Metric, metric string) float64 {
+	switch metric {
+	case "cpu":
+		return m.CPUPercent
+	case "mem":
+		return m.MemPercent
+	case "disk":
+		return m.DiskPercent
+	default:
+		return 0
 	}
 }
 

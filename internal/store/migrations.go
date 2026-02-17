@@ -10,6 +10,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV5,
 	migrateV6,
 	migrateV7,
+	migrateV8,
 }
 
 func migrateV1(tx *sql.Tx) error {
@@ -172,4 +173,9 @@ func migrateV7(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+func migrateV8(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE clients ADD COLUMN metric_consecutive_checkins INTEGER`)
+	return err
 }

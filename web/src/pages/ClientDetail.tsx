@@ -20,10 +20,10 @@ function formatFriendlyDuration(dateStr: string): string {
   if (Number.isNaN(since)) return '-';
   let seconds = Math.max(0, Math.floor((Date.now() - since) / 1000));
   const units = [
-    { label: 'year', secs: 365 * 24 * 60 * 60 },
-    { label: 'day', secs: 24 * 60 * 60 },
-    { label: 'hour', secs: 60 * 60 },
-    { label: 'minute', secs: 60 },
+    { label: 'yr', secs: 365 * 24 * 60 * 60 },
+    { label: 'd', secs: 24 * 60 * 60 },
+    { label: 'hr', secs: 60 * 60 },
+    { label: 'min', secs: 60 },
   ];
   const parts: string[] = [];
   for (const unit of units) {
@@ -31,11 +31,11 @@ function formatFriendlyDuration(dateStr: string): string {
     if (seconds < unit.secs) continue;
     const count = Math.floor(seconds / unit.secs);
     seconds -= count * unit.secs;
-    parts.push(`${count} ${unit.label}${count === 1 ? '' : 's'}`);
+    parts.push(`${count}${unit.label}`);
   }
-  if (parts.length === 0) return 'less than a minute';
+  if (parts.length === 0) return '<1min';
   if (parts.length === 1) return parts[0];
-  return `${parts[0]} and ${parts[1]}`;
+  return `${parts[0]} ${parts[1]}`;
 }
 
 function isoTooltip(dateStr: string): string {
@@ -52,6 +52,7 @@ const FALLBACK_THRESHOLDS: Thresholds = {
   disk_warn_pct: 80,
   disk_crit_pct: 90,
   offline_threshold_minutes: 4,
+  metric_consecutive_checkins: 1,
 };
 
 function displayName(client: Client): string {
@@ -107,6 +108,7 @@ export default function ClientDetail() {
         disk_warn_pct: parseSettingNumber(settings, 'disk_warn_pct_default', FALLBACK_THRESHOLDS.disk_warn_pct),
         disk_crit_pct: parseSettingNumber(settings, 'disk_crit_pct_default', FALLBACK_THRESHOLDS.disk_crit_pct),
         offline_threshold_minutes: Math.max(1, Math.round(parseSettingNumber(settings, 'offline_threshold_seconds', 240) / 60)),
+        metric_consecutive_checkins: Math.max(1, Math.round(parseSettingNumber(settings, 'metric_consecutive_checkins_default', 1))),
       };
       setThresholdsForm({
         cpu_warn_pct: data.client.cpu_warn_pct ?? defaults.cpu_warn_pct,
@@ -118,6 +120,9 @@ export default function ClientDetail() {
         offline_threshold_minutes: data.client.offline_threshold_seconds
           ? Math.max(1, Math.round(data.client.offline_threshold_seconds / 60))
           : defaults.offline_threshold_minutes,
+        metric_consecutive_checkins: data.client.metric_consecutive_checkins
+          ? Math.max(1, Math.round(data.client.metric_consecutive_checkins))
+          : defaults.metric_consecutive_checkins,
       });
 
       const rangeHours = range === '1h' ? 1 : range === '6h' ? 6 : range === '7d' ? 168 : range === '14d' ? 336 : 24;
@@ -535,6 +540,23 @@ export default function ClientDetail() {
               />
               <p className="text-xs text-gray-500 mt-1">
                 Per-client override. Use &quot;Use Global Defaults&quot; to inherit the global delay.
+              </p>
+            </div>
+            <div className="mt-3 border rounded-lg p-3 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Metric Alert Delay</h3>
+              <label className="block text-xs text-gray-600 mb-1">Consecutive check-ins above threshold before alerting</label>
+              <input
+                type="number"
+                min={1}
+                value={thresholdsForm.metric_consecutive_checkins}
+                onChange={e => setThresholdsForm({
+                  ...thresholdsForm,
+                  metric_consecutive_checkins: Math.max(1, Number(e.target.value) || 1),
+                })}
+                className="w-full max-w-xs px-3 py-1.5 border rounded text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Applies to CPU, memory, and disk warning/critical alerts for this client.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 mt-4">

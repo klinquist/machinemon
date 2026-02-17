@@ -27,6 +27,7 @@ type Store interface {
 	// Metrics
 	InsertMetrics(clientID string, m models.MetricsPayload) error
 	GetLatestMetrics(clientID string) (*models.Metric, error)
+	GetRecentMetrics(clientID string, limit int) ([]models.Metric, error)
 	GetMetrics(clientID string, from, to time.Time, limit int) ([]models.Metric, error)
 
 	// Process tracking

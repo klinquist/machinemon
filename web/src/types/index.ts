@@ -21,6 +21,7 @@ export interface Client {
   disk_warn_pct: number | null;
   disk_crit_pct: number | null;
   offline_threshold_seconds?: number | null;
+  metric_consecutive_checkins?: number | null;
 }
 
 export interface ClientWithMetrics {
@@ -39,6 +40,7 @@ export interface ClientWithMetrics {
   alerts_muted: boolean;
   muted_until: string | null;
   offline_threshold_seconds?: number | null;
+  metric_consecutive_checkins?: number | null;
   latest_metrics: Metrics | null;
   process_count: number;
 }
@@ -99,6 +101,7 @@ export interface Thresholds {
   disk_warn_pct: number;
   disk_crit_pct: number;
   offline_threshold_minutes: number;
+  metric_consecutive_checkins: number;
 }
 
 export interface AlertProvider {

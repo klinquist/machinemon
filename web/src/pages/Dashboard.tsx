@@ -19,10 +19,10 @@ function formatFriendlyDuration(dateStr: string): string {
   if (Number.isNaN(since)) return '-';
   let seconds = Math.max(0, Math.floor((Date.now() - since) / 1000));
   const units = [
-    { label: 'year', secs: 365 * 24 * 60 * 60 },
-    { label: 'day', secs: 24 * 60 * 60 },
-    { label: 'hour', secs: 60 * 60 },
-    { label: 'minute', secs: 60 },
+    { label: 'yr', secs: 365 * 24 * 60 * 60 },
+    { label: 'd', secs: 24 * 60 * 60 },
+    { label: 'hr', secs: 60 * 60 },
+    { label: 'min', secs: 60 },
   ];
   const parts: string[] = [];
   for (const unit of units) {
@@ -30,11 +30,11 @@ function formatFriendlyDuration(dateStr: string): string {
     if (seconds < unit.secs) continue;
     const count = Math.floor(seconds / unit.secs);
     seconds -= count * unit.secs;
-    parts.push(`${count} ${unit.label}${count === 1 ? '' : 's'}`);
+    parts.push(`${count}${unit.label}`);
   }
-  if (parts.length === 0) return 'less than a minute';
+  if (parts.length === 0) return '<1min';
   if (parts.length === 1) return parts[0];
-  return `${parts[0]} and ${parts[1]}`;
+  return `${parts[0]} ${parts[1]}`;
 }
 
 function isoTooltip(dateStr: string): string {
