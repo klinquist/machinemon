@@ -193,13 +193,13 @@ export default function Dashboard() {
                     <div className="text-sm text-gray-400">No metrics yet</div>
                   )}
                   <div className="mt-3 grid grid-cols-[auto,1fr,auto] items-center gap-2 text-xs text-gray-400">
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1 whitespace-nowrap">
                       <Clock size={12} /> {timeAgo(client.last_seen_at)}
                     </span>
-                    <span className="justify-self-center" title={isoTooltip(client.session_started_at)}>
+                    <span className="justify-self-center whitespace-nowrap" title={isoTooltip(client.session_started_at)}>
                       Uptime: {formatFriendlyDuration(client.session_started_at)}
                     </span>
-                    <span className="justify-self-end">
+                    <span className="justify-self-end whitespace-nowrap">
                       {client.process_count} process{client.process_count !== 1 ? 'es' : ''}
                     </span>
                   </div>
