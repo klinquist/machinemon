@@ -6,6 +6,7 @@ import MetricGauge from '../components/MetricGauge';
 import StatusDot from '../components/StatusDot';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Trash2, VolumeX, Volume2, ArrowLeft, RefreshCw, Pencil, ChevronRight, ChevronDown } from 'lucide-react';
+import { clientVersionLabel } from '../utils/clientVersion';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -64,17 +65,6 @@ const FALLBACK_THRESHOLDS: Thresholds = {
 
 function displayName(client: Client): string {
   return client.custom_name?.trim() || client.hostname;
-}
-
-function clientVersionLabel(version: string): string {
-  const trimmed = (version || '').trim();
-  if (!trimmed) return 'client unknown';
-  const withoutDirty = trimmed.replace(/-dirty$/i, '');
-  const withoutGitHash = withoutDirty.replace(/-\d+-g[0-9a-f]+$/i, '');
-  if (!withoutGitHash) return 'client unknown';
-  if (withoutGitHash.startsWith('v')) return `client ${withoutGitHash}`;
-  if (/^\d/.test(withoutGitHash)) return `client v${withoutGitHash}`;
-  return `client ${withoutGitHash}`;
 }
 
 export default function ClientDetail() {

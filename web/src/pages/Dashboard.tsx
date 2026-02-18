@@ -5,6 +5,7 @@ import type { ClientWithMetrics } from '../types';
 import StatusDot from '../components/StatusDot';
 import MetricGauge from '../components/MetricGauge';
 import { Server, Clock } from 'lucide-react';
+import { clientVersionLabel } from '../utils/clientVersion';
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -45,21 +46,6 @@ function isoTooltip(dateStr: string): string {
 
 function clientLabel(client: ClientWithMetrics): string {
   return client.custom_name?.trim() || client.hostname;
-}
-
-function clientVersionLabel(version: string): string {
-  const trimmed = (version || '').trim();
-  if (!trimmed) return 'client unknown';
-  const withoutDirty = trimmed.replace(/-dirty$/i, '');
-  const withoutGitHash = withoutDirty.replace(/-\d+-g[0-9a-f]+$/i, '');
-  if (!withoutGitHash) return 'client unknown';
-  const haMatch = withoutGitHash.match(/^client-ha-integration-(.+)$/i);
-  if (haMatch) {
-    return `client-ha-${haMatch[1]}`;
-  }
-  if (withoutGitHash.startsWith('v')) return `client ${withoutGitHash}`;
-  if (/^\d/.test(withoutGitHash)) return `client v${withoutGitHash}`;
-  return `client ${withoutGitHash}`;
 }
 
 function normalizePublicIP(ip?: string): string {
@@ -201,13 +187,16 @@ export default function Dashboard() {
                         <StatusDot online={client.is_online} muted={client.alerts_muted} />
                         <span className="font-semibold text-gray-900">{clientLabel(client)}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         {offline && (
                           <span className="text-[10px] uppercase font-bold tracking-wider text-red-700 bg-red-100 border border-red-300 px-2 py-0.5 rounded">
                             Offline
                           </span>
                         )}
-                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap">
+                        <span
+                          className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap max-w-[16rem] truncate"
+                          title={`${client.os}/${client.arch} • ${clientVersionLabel(client.client_version)}`}
+                        >
                           {client.os}/{client.arch} • {clientVersionLabel(client.client_version)}
                         </span>
                       </div>
