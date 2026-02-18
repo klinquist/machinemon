@@ -100,8 +100,11 @@ export interface Thresholds {
   mem_crit_pct: number;
   disk_warn_pct: number;
   disk_crit_pct: number;
-  offline_threshold_minutes: number;
-  metric_consecutive_checkins: number;
+  offline_threshold_minutes?: number;
+  metric_consecutive_checkins?: number;
+  metric_thresholds_enabled?: boolean;
+  offline_threshold_enabled?: boolean;
+  metric_consecutive_enabled?: boolean;
 }
 
 export interface AlertProvider {

@@ -373,30 +373,75 @@ func (s *SQLiteStore) SetClientThresholds(id string, t *models.Thresholds) error
 			WHERE id = ?`, id)
 		return err
 	}
-	offlineOverrideProvided := t.OfflineThresholdMinutes != nil
+	legacyMetricValuesProvided := t.CPUWarnPct != 0 || t.CPUCritPct != 0 || t.MemWarnPct != 0 || t.MemCritPct != 0 || t.DiskWarnPct != 0 || t.DiskCritPct != 0
+	metricClear := t.MetricThresholdsEnabled != nil && !*t.MetricThresholdsEnabled
+	metricSet := (t.MetricThresholdsEnabled != nil && *t.MetricThresholdsEnabled) || (t.MetricThresholdsEnabled == nil && legacyMetricValuesProvided)
+
+	offlineClear := t.OfflineThresholdEnabled != nil && !*t.OfflineThresholdEnabled
+	offlineSet := (t.OfflineThresholdEnabled != nil && *t.OfflineThresholdEnabled) || (t.OfflineThresholdEnabled == nil && t.OfflineThresholdMinutes != nil)
 	offlineThresholdSecs := 0
-	if offlineOverrideProvided && *t.OfflineThresholdMinutes > 0 {
+	if offlineSet && t.OfflineThresholdMinutes != nil && *t.OfflineThresholdMinutes > 0 {
 		offlineThresholdSecs = *t.OfflineThresholdMinutes * 60
 	}
-	consecutiveOverrideProvided := t.MetricConsecutiveCheckins != nil
+
+	consecutiveClear := t.MetricConsecutiveEnabled != nil && !*t.MetricConsecutiveEnabled
+	consecutiveSet := (t.MetricConsecutiveEnabled != nil && *t.MetricConsecutiveEnabled) || (t.MetricConsecutiveEnabled == nil && t.MetricConsecutiveCheckins != nil)
 	consecutiveThreshold := 0
-	if consecutiveOverrideProvided && *t.MetricConsecutiveCheckins > 0 {
+	if consecutiveSet && t.MetricConsecutiveCheckins != nil && *t.MetricConsecutiveCheckins > 0 {
 		consecutiveThreshold = *t.MetricConsecutiveCheckins
 	}
-	_, err := s.db.Exec(`UPDATE clients SET cpu_warn_pct = ?, cpu_crit_pct = ?,
-		mem_warn_pct = ?, mem_crit_pct = ?, disk_warn_pct = ?, disk_crit_pct = ?,
-		offline_threshold_seconds = CASE
+	_, err := s.db.Exec(`UPDATE clients SET offline_threshold_seconds = CASE
+			WHEN ? THEN NULL
 			WHEN ? THEN NULLIF(?, 0)
 			ELSE offline_threshold_seconds
 		END,
 		metric_consecutive_checkins = CASE
+			WHEN ? THEN NULL
 			WHEN ? THEN NULLIF(?, 0)
 			ELSE metric_consecutive_checkins
+		END,
+		cpu_warn_pct = CASE
+			WHEN ? THEN NULL
+			WHEN ? THEN ?
+			ELSE cpu_warn_pct
+		END,
+		cpu_crit_pct = CASE
+			WHEN ? THEN NULL
+			WHEN ? THEN ?
+			ELSE cpu_crit_pct
+		END,
+		mem_warn_pct = CASE
+			WHEN ? THEN NULL
+			WHEN ? THEN ?
+			ELSE mem_warn_pct
+		END,
+		mem_crit_pct = CASE
+			WHEN ? THEN NULL
+			WHEN ? THEN ?
+			ELSE mem_crit_pct
+		END,
+		disk_warn_pct = CASE
+			WHEN ? THEN NULL
+			WHEN ? THEN ?
+			ELSE disk_warn_pct
+		END,
+		disk_crit_pct = CASE
+			WHEN ? THEN NULL
+			WHEN ? THEN ?
+			ELSE disk_crit_pct
 		END
 		WHERE id = ?`,
-		t.CPUWarnPct, t.CPUCritPct, t.MemWarnPct, t.MemCritPct, t.DiskWarnPct, t.DiskCritPct,
-		offlineOverrideProvided, offlineThresholdSecs,
-		consecutiveOverrideProvided, consecutiveThreshold,
+		// offline_threshold_seconds
+		offlineClear, offlineSet, offlineThresholdSecs,
+		// metric_consecutive_checkins
+		consecutiveClear, consecutiveSet, consecutiveThreshold,
+		// CPU/MEM/DISK metric thresholds
+		metricClear, metricSet, t.CPUWarnPct,
+		metricClear, metricSet, t.CPUCritPct,
+		metricClear, metricSet, t.MemWarnPct,
+		metricClear, metricSet, t.MemCritPct,
+		metricClear, metricSet, t.DiskWarnPct,
+		metricClear, metricSet, t.DiskCritPct,
 		id)
 	return err
 }

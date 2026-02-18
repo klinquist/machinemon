@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchClient, deleteClient, deleteWatchedProcess, deleteCheckSnapshot, setMute, setScopedMute, fetchMetrics, fetchAlerts, setThresholds, clearThresholds, setClientName, fetchSettings } from '../api/client';
+import { fetchClient, deleteClient, deleteWatchedProcess, deleteCheckSnapshot, setMute, setScopedMute, fetchMetrics, fetchAlerts, setThresholds, setClientName, fetchSettings } from '../api/client';
 import type { Client, Metrics, ProcessSnapshot, CheckSnapshot, ClientAlertMute, Alert, Thresholds } from '../types';
 import MetricGauge from '../components/MetricGauge';
 import StatusDot from '../components/StatusDot';
@@ -44,6 +44,13 @@ function isoTooltip(dateStr: string): string {
   return parsed.toISOString();
 }
 
+function formatPercentOneDecimal(value: number | string | undefined): string {
+  if (typeof value === 'undefined') return '-';
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return `${value}%`;
+  return `${numeric.toFixed(1)}%`;
+}
+
 const FALLBACK_THRESHOLDS: Thresholds = {
   cpu_warn_pct: 80,
   cpu_crit_pct: 95,
@@ -75,6 +82,10 @@ export default function ClientDetail() {
   const [range, setRange] = useState('24h');
   const [nameInput, setNameInput] = useState('');
   const [thresholdsForm, setThresholdsForm] = useState<Thresholds>(FALLBACK_THRESHOLDS);
+  const [thresholdDefaults, setThresholdDefaults] = useState<Thresholds>(FALLBACK_THRESHOLDS);
+  const [customMetricThresholds, setCustomMetricThresholds] = useState(false);
+  const [customOfflineDelay, setCustomOfflineDelay] = useState(false);
+  const [customMetricDelay, setCustomMetricDelay] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ kind: 'process' | 'check'; friendlyName: string; checkType?: string } | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -110,17 +121,32 @@ export default function ClientDetail() {
         offline_threshold_minutes: Math.max(1, Math.round(parseSettingNumber(settings, 'offline_threshold_seconds', 240) / 60)),
         metric_consecutive_checkins: Math.max(1, Math.round(parseSettingNumber(settings, 'metric_consecutive_checkins_default', 1))),
       };
+      setThresholdDefaults(defaults);
+
+      const hasCustomMetricThresholds =
+        data.client.cpu_warn_pct != null ||
+        data.client.cpu_crit_pct != null ||
+        data.client.mem_warn_pct != null ||
+        data.client.mem_crit_pct != null ||
+        data.client.disk_warn_pct != null ||
+        data.client.disk_crit_pct != null;
+      const hasCustomOfflineDelay = data.client.offline_threshold_seconds != null;
+      const hasCustomMetricDelay = data.client.metric_consecutive_checkins != null;
+      setCustomMetricThresholds(hasCustomMetricThresholds);
+      setCustomOfflineDelay(hasCustomOfflineDelay);
+      setCustomMetricDelay(hasCustomMetricDelay);
+
       setThresholdsForm({
-        cpu_warn_pct: data.client.cpu_warn_pct ?? defaults.cpu_warn_pct,
-        cpu_crit_pct: data.client.cpu_crit_pct ?? defaults.cpu_crit_pct,
-        mem_warn_pct: data.client.mem_warn_pct ?? defaults.mem_warn_pct,
-        mem_crit_pct: data.client.mem_crit_pct ?? defaults.mem_crit_pct,
-        disk_warn_pct: data.client.disk_warn_pct ?? defaults.disk_warn_pct,
-        disk_crit_pct: data.client.disk_crit_pct ?? defaults.disk_crit_pct,
-        offline_threshold_minutes: data.client.offline_threshold_seconds
-          ? Math.max(1, Math.round(data.client.offline_threshold_seconds / 60))
+        cpu_warn_pct: hasCustomMetricThresholds ? (data.client.cpu_warn_pct ?? defaults.cpu_warn_pct) : defaults.cpu_warn_pct,
+        cpu_crit_pct: hasCustomMetricThresholds ? (data.client.cpu_crit_pct ?? defaults.cpu_crit_pct) : defaults.cpu_crit_pct,
+        mem_warn_pct: hasCustomMetricThresholds ? (data.client.mem_warn_pct ?? defaults.mem_warn_pct) : defaults.mem_warn_pct,
+        mem_crit_pct: hasCustomMetricThresholds ? (data.client.mem_crit_pct ?? defaults.mem_crit_pct) : defaults.mem_crit_pct,
+        disk_warn_pct: hasCustomMetricThresholds ? (data.client.disk_warn_pct ?? defaults.disk_warn_pct) : defaults.disk_warn_pct,
+        disk_crit_pct: hasCustomMetricThresholds ? (data.client.disk_crit_pct ?? defaults.disk_crit_pct) : defaults.disk_crit_pct,
+        offline_threshold_minutes: hasCustomOfflineDelay && data.client.offline_threshold_seconds
+          ? Math.max(1, Math.round((data.client.offline_threshold_seconds as number) / 60))
           : defaults.offline_threshold_minutes,
-        metric_consecutive_checkins: data.client.metric_consecutive_checkins
+        metric_consecutive_checkins: hasCustomMetricDelay && data.client.metric_consecutive_checkins
           ? Math.max(1, Math.round(data.client.metric_consecutive_checkins))
           : defaults.metric_consecutive_checkins,
       });
@@ -189,19 +215,20 @@ export default function ClientDetail() {
   const handleSaveThresholds = async () => {
     if (!id) return;
     try {
-      await setThresholds(id, thresholdsForm);
+      await setThresholds(id, {
+        cpu_warn_pct: thresholdsForm.cpu_warn_pct ?? thresholdDefaults.cpu_warn_pct,
+        cpu_crit_pct: thresholdsForm.cpu_crit_pct ?? thresholdDefaults.cpu_crit_pct,
+        mem_warn_pct: thresholdsForm.mem_warn_pct ?? thresholdDefaults.mem_warn_pct,
+        mem_crit_pct: thresholdsForm.mem_crit_pct ?? thresholdDefaults.mem_crit_pct,
+        disk_warn_pct: thresholdsForm.disk_warn_pct ?? thresholdDefaults.disk_warn_pct,
+        disk_crit_pct: thresholdsForm.disk_crit_pct ?? thresholdDefaults.disk_crit_pct,
+        offline_threshold_minutes: thresholdsForm.offline_threshold_minutes,
+        metric_consecutive_checkins: thresholdsForm.metric_consecutive_checkins,
+        metric_thresholds_enabled: customMetricThresholds,
+        offline_threshold_enabled: customOfflineDelay,
+        metric_consecutive_enabled: customMetricDelay,
+      });
       setStatus('Per-client thresholds updated');
-      loadData();
-    } catch (err: any) {
-      setStatus(`Error: ${err.message}`);
-    }
-  };
-
-  const handleResetThresholds = async () => {
-    if (!id) return;
-    try {
-      await clearThresholds(id);
-      setStatus('Per-client thresholds reset to global defaults');
       loadData();
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
@@ -242,9 +269,9 @@ export default function ClientDetail() {
 
   const chartData = history.map(m => ({
     time: new Date(m.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    cpu: m.cpu_pct,
-    mem: m.mem_pct,
-    disk: m.disk_pct,
+    cpu: Number(m.cpu_pct.toFixed(1)),
+    mem: Number(m.mem_pct.toFixed(1)),
+    disk: Number(m.disk_pct.toFixed(1)),
   }));
 
   return (
@@ -474,7 +501,7 @@ export default function ClientDetail() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="time" tick={{ fontSize: 11 }} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <Tooltip formatter={(value: number | string | undefined) => formatPercentOneDecimal(value)} />
               <Area type="monotone" dataKey="cpu" stroke="#3b82f6" fill="#93c5fd" fillOpacity={0.3} name="CPU %" />
               <Area type="monotone" dataKey="mem" stroke="#10b981" fill="#6ee7b7" fillOpacity={0.3} name="Mem %" />
               <Area type="monotone" dataKey="disk" stroke="#f59e0b" fill="#fcd34d" fillOpacity={0.3} name="Disk %" />
@@ -496,6 +523,28 @@ export default function ClientDetail() {
         </button>
         {showThresholds && (
           <div className="mt-4">
+            <label className="mb-3 inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={customMetricThresholds}
+                onChange={e => {
+                  const enabled = e.target.checked;
+                  setCustomMetricThresholds(enabled);
+                  if (!enabled) {
+                    setThresholdsForm({
+                      ...thresholdsForm,
+                      cpu_warn_pct: thresholdDefaults.cpu_warn_pct,
+                      cpu_crit_pct: thresholdDefaults.cpu_crit_pct,
+                      mem_warn_pct: thresholdDefaults.mem_warn_pct,
+                      mem_crit_pct: thresholdDefaults.mem_crit_pct,
+                      disk_warn_pct: thresholdDefaults.disk_warn_pct,
+                      disk_crit_pct: thresholdDefaults.disk_crit_pct,
+                    });
+                  }
+                }}
+              />
+              Use custom CPU/Memory/Disk thresholds
+            </label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
                 { title: 'CPU', warnKey: 'cpu_warn_pct', critKey: 'cpu_crit_pct' },
@@ -511,7 +560,8 @@ export default function ClientDetail() {
                     max={100}
                     value={(thresholdsForm as any)[group.warnKey]}
                     onChange={e => setThresholdsForm({ ...thresholdsForm, [group.warnKey]: Number(e.target.value) } as Thresholds)}
-                    className="w-full px-3 py-1.5 border rounded text-sm mb-2"
+                    disabled={!customMetricThresholds}
+                    className="w-full px-3 py-1.5 border rounded text-sm mb-2 disabled:bg-gray-100 disabled:text-gray-400"
                   />
                   <label className="block text-xs text-gray-600 mb-1">Critical %</label>
                   <input
@@ -520,13 +570,33 @@ export default function ClientDetail() {
                     max={100}
                     value={(thresholdsForm as any)[group.critKey]}
                     onChange={e => setThresholdsForm({ ...thresholdsForm, [group.critKey]: Number(e.target.value) } as Thresholds)}
-                    className="w-full px-3 py-1.5 border rounded text-sm"
+                    disabled={!customMetricThresholds}
+                    className="w-full px-3 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:text-gray-400"
                   />
                 </div>
               ))}
             </div>
             <div className="mt-3 border rounded-lg p-3 bg-gray-50">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Offline Alert Delay</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-700">Offline Alert Delay</h3>
+                <label className="inline-flex items-center gap-2 text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={customOfflineDelay}
+                    onChange={e => {
+                      const enabled = e.target.checked;
+                      setCustomOfflineDelay(enabled);
+                      if (!enabled) {
+                        setThresholdsForm({
+                          ...thresholdsForm,
+                          offline_threshold_minutes: thresholdDefaults.offline_threshold_minutes,
+                        });
+                      }
+                    }}
+                  />
+                  Use custom
+                </label>
+              </div>
               <label className="block text-xs text-gray-600 mb-1">Minutes before offline alert</label>
               <input
                 type="number"
@@ -536,14 +606,34 @@ export default function ClientDetail() {
                   ...thresholdsForm,
                   offline_threshold_minutes: Math.max(1, Number(e.target.value) || 1),
                 })}
-                className="w-full max-w-xs px-3 py-1.5 border rounded text-sm"
+                disabled={!customOfflineDelay}
+                className="w-full max-w-xs px-3 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:text-gray-400"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Per-client override. Use &quot;Use Global Defaults&quot; to inherit the global delay.
+                Global default: {thresholdDefaults.offline_threshold_minutes} minute(s)
               </p>
             </div>
             <div className="mt-3 border rounded-lg p-3 bg-gray-50">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Metric Alert Delay</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-700">Metric Alert Delay</h3>
+                <label className="inline-flex items-center gap-2 text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={customMetricDelay}
+                    onChange={e => {
+                      const enabled = e.target.checked;
+                      setCustomMetricDelay(enabled);
+                      if (!enabled) {
+                        setThresholdsForm({
+                          ...thresholdsForm,
+                          metric_consecutive_checkins: thresholdDefaults.metric_consecutive_checkins,
+                        });
+                      }
+                    }}
+                  />
+                  Use custom
+                </label>
+              </div>
               <label className="block text-xs text-gray-600 mb-1">Consecutive check-ins above threshold before alerting</label>
               <input
                 type="number"
@@ -553,18 +643,16 @@ export default function ClientDetail() {
                   ...thresholdsForm,
                   metric_consecutive_checkins: Math.max(1, Number(e.target.value) || 1),
                 })}
-                className="w-full max-w-xs px-3 py-1.5 border rounded text-sm"
+                disabled={!customMetricDelay}
+                className="w-full max-w-xs px-3 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:text-gray-400"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Applies to CPU, memory, and disk warning/critical alerts for this client.
+                Global default: {thresholdDefaults.metric_consecutive_checkins} check-in(s)
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 mt-4">
               <button onClick={handleSaveThresholds} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
                 Save Thresholds
-              </button>
-              <button onClick={handleResetThresholds} className="px-4 py-2 border rounded text-sm hover:bg-gray-50">
-                Use Global Defaults
               </button>
             </div>
           </div>

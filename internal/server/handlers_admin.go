@@ -81,11 +81,23 @@ func (s *Server) handleSetThresholds(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
-	if t.OfflineThresholdMinutes != nil && *t.OfflineThresholdMinutes < 1 {
+	if t.OfflineThresholdEnabled != nil && *t.OfflineThresholdEnabled {
+		if t.OfflineThresholdMinutes == nil || *t.OfflineThresholdMinutes < 1 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "offline_threshold_minutes must be >= 1 when offline_threshold_enabled is true"})
+			return
+		}
+	}
+	if t.OfflineThresholdEnabled == nil && t.OfflineThresholdMinutes != nil && *t.OfflineThresholdMinutes < 1 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "offline_threshold_minutes must be >= 1"})
 		return
 	}
-	if t.MetricConsecutiveCheckins != nil && *t.MetricConsecutiveCheckins < 1 {
+	if t.MetricConsecutiveEnabled != nil && *t.MetricConsecutiveEnabled {
+		if t.MetricConsecutiveCheckins == nil || *t.MetricConsecutiveCheckins < 1 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "metric_consecutive_checkins must be >= 1 when metric_consecutive_enabled is true"})
+			return
+		}
+	}
+	if t.MetricConsecutiveEnabled == nil && t.MetricConsecutiveCheckins != nil && *t.MetricConsecutiveCheckins < 1 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "metric_consecutive_checkins must be >= 1"})
 		return
 	}

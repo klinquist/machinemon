@@ -257,6 +257,10 @@ type Thresholds struct {
 	MemCritPct  float64 `json:"mem_crit_pct"`
 	DiskWarnPct float64 `json:"disk_warn_pct"`
 	DiskCritPct float64 `json:"disk_crit_pct"`
+	// Optional override toggles. Nil means preserve current server-side value.
+	MetricThresholdsEnabled  *bool `json:"metric_thresholds_enabled,omitempty"`
+	OfflineThresholdEnabled  *bool `json:"offline_threshold_enabled,omitempty"`
+	MetricConsecutiveEnabled *bool `json:"metric_consecutive_enabled,omitempty"`
 	// Optional per-client offline alert delay override in minutes.
 	// Nil means keep current value; use clear-thresholds endpoint to reset to global.
 	OfflineThresholdMinutes *int `json:"offline_threshold_minutes,omitempty"`
