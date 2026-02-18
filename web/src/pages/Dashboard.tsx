@@ -53,6 +53,10 @@ function clientVersionLabel(version: string): string {
   const withoutDirty = trimmed.replace(/-dirty$/i, '');
   const withoutGitHash = withoutDirty.replace(/-\d+-g[0-9a-f]+$/i, '');
   if (!withoutGitHash) return 'client unknown';
+  const haMatch = withoutGitHash.match(/^client-ha-integration-(.+)$/i);
+  if (haMatch) {
+    return `client-ha-${haMatch[1]}`;
+  }
   if (withoutGitHash.startsWith('v')) return `client ${withoutGitHash}`;
   if (/^\d/.test(withoutGitHash)) return `client v${withoutGitHash}`;
   return `client ${withoutGitHash}`;
