@@ -69,9 +69,12 @@ function displayName(client: Client): string {
 function clientVersionLabel(version: string): string {
   const trimmed = (version || '').trim();
   if (!trimmed) return 'client unknown';
-  if (trimmed.startsWith('v')) return `client ${trimmed}`;
-  if (/^\d/.test(trimmed)) return `client v${trimmed}`;
-  return `client ${trimmed}`;
+  const withoutDirty = trimmed.replace(/-dirty$/i, '');
+  const withoutGitHash = withoutDirty.replace(/-\d+-g[0-9a-f]+$/i, '');
+  if (!withoutGitHash) return 'client unknown';
+  if (withoutGitHash.startsWith('v')) return `client ${withoutGitHash}`;
+  if (/^\d/.test(withoutGitHash)) return `client v${withoutGitHash}`;
+  return `client ${withoutGitHash}`;
 }
 
 export default function ClientDetail() {

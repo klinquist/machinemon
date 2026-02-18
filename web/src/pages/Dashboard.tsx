@@ -50,9 +50,12 @@ function clientLabel(client: ClientWithMetrics): string {
 function clientVersionLabel(version: string): string {
   const trimmed = (version || '').trim();
   if (!trimmed) return 'client unknown';
-  if (trimmed.startsWith('v')) return `client ${trimmed}`;
-  if (/^\d/.test(trimmed)) return `client v${trimmed}`;
-  return `client ${trimmed}`;
+  const withoutDirty = trimmed.replace(/-dirty$/i, '');
+  const withoutGitHash = withoutDirty.replace(/-\d+-g[0-9a-f]+$/i, '');
+  if (!withoutGitHash) return 'client unknown';
+  if (withoutGitHash.startsWith('v')) return `client ${withoutGitHash}`;
+  if (/^\d/.test(withoutGitHash)) return `client v${withoutGitHash}`;
+  return `client ${withoutGitHash}`;
 }
 
 function normalizePublicIP(ip?: string): string {
@@ -187,7 +190,7 @@ export default function Dashboard() {
                       <StatusDot online={client.is_online} muted={client.alerts_muted} />
                       <span className="font-semibold text-gray-900">{clientLabel(client)}</span>
                     </div>
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap">
                       {client.os}/{client.arch} • {clientVersionLabel(client.client_version)}
                     </span>
                   </div>
