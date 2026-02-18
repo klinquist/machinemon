@@ -149,6 +149,7 @@ rm -f dist/machinemon-client-* dist/machinemon-server-* dist/checksums.txt
 
 VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+TARGET_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LDFLAGS="-s -w \
   -X github.com/machinemon/machinemon/internal/version.Version=${VERSION} \
@@ -217,7 +218,7 @@ if [[ "$DO_UPLOAD" -eq 1 ]]; then
   else
     echo "Could not confirm whether tag ${TAG} release exists; trying upload first."
     if ! retry_cmd 2 gh release upload "$TAG" "${assets[@]}" --clobber; then
-      retry_cmd 3 gh release create "$TAG" "${assets[@]}" --target "$COMMIT" --title "$TAG" --generate-notes
+      retry_cmd 3 gh release create "$TAG" "${assets[@]}" --target "$TARGET_COMMIT" --title "$TAG" --generate-notes
     fi
   fi
 fi
