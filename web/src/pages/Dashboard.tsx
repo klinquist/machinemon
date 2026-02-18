@@ -137,6 +137,7 @@ export default function Dashboard() {
   const onlineCount = clients.filter(c => c.is_online).length;
   const groupedClients = (() => {
     const sorted = [...clients].sort((a, b) => {
+      if (a.is_online !== b.is_online) return a.is_online ? 1 : -1;
       const ipCmp = comparePublicIP(a.public_ip, b.public_ip);
       if (ipCmp !== 0) return ipCmp;
       return clientLabel(a).localeCompare(clientLabel(b));
@@ -179,43 +180,59 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {group.clients.map(client => (
-                <Link
-                  key={client.id}
-                  to={`/clients/${client.id}`}
-                  className="bg-white rounded-lg border hover:shadow-md transition-shadow p-4 block"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <StatusDot online={client.is_online} muted={client.alerts_muted} />
-                      <span className="font-semibold text-gray-900">{clientLabel(client)}</span>
+              {group.clients.map(client => {
+                const offline = !client.is_online;
+                const cardClasses = offline
+                  ? 'bg-red-50 border-2 border-red-300 hover:border-red-400 shadow-sm'
+                  : 'bg-white border hover:shadow-md';
+
+                return (
+                  <Link
+                    key={client.id}
+                    to={`/clients/${client.id}`}
+                    className={`${cardClasses} rounded-lg transition-all p-4 block`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <StatusDot online={client.is_online} muted={client.alerts_muted} />
+                        <span className="font-semibold text-gray-900">{clientLabel(client)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {offline && (
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-red-700 bg-red-100 border border-red-300 px-2 py-0.5 rounded">
+                            Offline
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap">
+                          {client.os}/{client.arch} • {clientVersionLabel(client.client_version)}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap">
-                      {client.os}/{client.arch} • {clientVersionLabel(client.client_version)}
-                    </span>
-                  </div>
-                  {client.latest_metrics ? (
-                    <div className="flex gap-4">
-                      <MetricGauge label="CPU" value={client.latest_metrics.cpu_pct} />
-                      <MetricGauge label="Memory" value={client.latest_metrics.mem_pct} />
-                      <MetricGauge label="Disk" value={client.latest_metrics.disk_pct} />
+                    {client.latest_metrics ? (
+                      <div className="flex gap-4">
+                        <MetricGauge label="CPU" value={client.latest_metrics.cpu_pct} />
+                        <MetricGauge label="Memory" value={client.latest_metrics.mem_pct} />
+                        <MetricGauge label="Disk" value={client.latest_metrics.disk_pct} />
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-400">No metrics yet</div>
+                    )}
+                    <div
+                      className={`mt-3 grid grid-cols-[max-content_1fr_max-content] items-center gap-2 text-xs ${offline ? 'text-red-700' : 'text-gray-400'}`}
+                    >
+                      <span className="flex items-center gap-1 whitespace-nowrap">
+                        <Clock size={12} /> {timeAgo(client.last_seen_at)}
+                      </span>
+                      <span className="justify-self-center whitespace-nowrap" title={isoTooltip(client.session_started_at)}>
+                        Uptime: {formatFriendlyDuration(client.session_started_at)}
+                      </span>
+                      <span className="justify-self-end whitespace-nowrap">
+                        {client.process_count} process{client.process_count !== 1 ? 'es' : ''}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="text-sm text-gray-400">No metrics yet</div>
-                  )}
-                  <div className="mt-3 grid grid-cols-[max-content_1fr_max-content] items-center gap-2 text-xs text-gray-400">
-                    <span className="flex items-center gap-1 whitespace-nowrap">
-                      <Clock size={12} /> {timeAgo(client.last_seen_at)}
-                    </span>
-                    <span className="justify-self-center whitespace-nowrap" title={isoTooltip(client.session_started_at)}>
-                      Uptime: {formatFriendlyDuration(client.session_started_at)}
-                    </span>
-                    <span className="justify-self-end whitespace-nowrap">
-                      {client.process_count} process{client.process_count !== 1 ? 'es' : ''}
-                    </span>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           </section>
         ))}
