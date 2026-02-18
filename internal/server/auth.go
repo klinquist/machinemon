@@ -25,12 +25,10 @@ func (s *Server) adminBasicAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
 		if !ok || user != "admin" {
-			w.Header().Set("WWW-Authenticate", `Basic realm="MachineMon"`)
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 		if err := bcrypt.CompareHashAndPassword([]byte(s.cfg.AdminPasswordHash), []byte(pass)); err != nil {
-			w.Header().Set("WWW-Authenticate", `Basic realm="MachineMon"`)
 			http.Error(w, `{"error":"invalid password"}`, http.StatusUnauthorized)
 			return
 		}
