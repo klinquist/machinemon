@@ -44,6 +44,12 @@ function isoTooltip(dateStr: string): string {
   return parsed.toISOString();
 }
 
+function localTooltip(dateStr: string): string {
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return dateStr;
+  return parsed.toLocaleString();
+}
+
 function clientLabel(client: ClientWithMetrics): string {
   return client.custom_name?.trim() || client.hostname;
 }
@@ -213,15 +219,24 @@ export default function Dashboard() {
                     <div
                       className={`mt-3 grid grid-cols-[max-content_1fr_max-content] items-center gap-2 text-xs ${offline ? 'text-red-700' : 'text-gray-400'}`}
                     >
-                      <span className="flex items-center gap-1 whitespace-nowrap">
-                        <Clock size={12} /> {timeAgo(client.last_seen_at)}
+                    <span className="flex items-center gap-1 whitespace-nowrap">
+                      <Clock size={12} /> {timeAgo(client.last_seen_at)}
+                    </span>
+                    {offline ? (
+                      <span
+                        className="justify-self-center whitespace-nowrap font-medium"
+                        title={`Went offline at ${localTooltip(client.last_seen_at)}`}
+                      >
+                        Offline for {formatFriendlyDuration(client.last_seen_at)}
                       </span>
+                    ) : (
                       <span className="justify-self-center whitespace-nowrap" title={isoTooltip(client.session_started_at)}>
                         Uptime: {formatFriendlyDuration(client.session_started_at)}
                       </span>
-                      <span className="justify-self-end whitespace-nowrap">
-                        {client.process_count} process{client.process_count !== 1 ? 'es' : ''}
-                      </span>
+                    )}
+                    <span className="justify-self-end whitespace-nowrap">
+                      {client.process_count} process{client.process_count !== 1 ? 'es' : ''}
+                    </span>
                     </div>
                   </Link>
                 );
