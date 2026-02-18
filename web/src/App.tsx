@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { isAuthenticated } from './api/client';
+import { authChangeEventName, isAuthenticated } from './api/client';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -16,8 +16,13 @@ function App() {
 
   useEffect(() => {
     const check = () => setAuthed(isAuthenticated());
+    const authEvent = authChangeEventName();
     window.addEventListener('storage', check);
-    return () => window.removeEventListener('storage', check);
+    window.addEventListener(authEvent, check);
+    return () => {
+      window.removeEventListener('storage', check);
+      window.removeEventListener(authEvent, check);
+    };
   }, []);
 
   if (!authed) {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { clearAuth, setAuth } from '../api/client';
+import { clearAuth, setAuth, validateAdminAuth } from '../api/client';
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const [password, setPassword] = useState('');
@@ -12,10 +12,8 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     setError('');
 
     try {
-      const res = await fetch('/api/v1/admin/clients', {
-        headers: { 'Authorization': `Basic ${btoa(`admin:${password}`)}` },
-      });
-      if (res.status === 401) {
+      const authResult = await validateAdminAuth('admin', password);
+      if (authResult === 'invalid') {
         clearAuth();
         setError('Invalid password');
         setLoading(false);

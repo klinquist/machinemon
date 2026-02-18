@@ -12,6 +12,11 @@ const API_BASE = `${BASE_PATH}/api/v1/admin`;
 const AUTH_KEY = 'machinemon_auth';
 const AUTH_EXP_KEY = 'machinemon_auth_expires_at';
 const AUTH_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+const AUTH_EVENT = 'machinemon-auth-changed';
+
+function notifyAuthChanged() {
+  window.dispatchEvent(new Event(AUTH_EVENT));
+}
 
 function clearAuthStorage() {
   localStorage.removeItem(AUTH_KEY);
@@ -68,7 +73,10 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { ...getAuthHeaders(), ...init?.headers },
   });
-  if (res.status === 401) throw new AuthError();
+  if (res.status === 401) {
+    clearAuth();
+    throw new AuthError();
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`API error ${res.status}: ${body}`);
@@ -80,14 +88,31 @@ export function setAuth(username: string, password: string) {
   localStorage.setItem(AUTH_KEY, btoa(`${username}:${password}`));
   localStorage.setItem(AUTH_EXP_KEY, String(Date.now() + AUTH_TTL_MS));
   sessionStorage.removeItem(AUTH_KEY);
+  notifyAuthChanged();
 }
 
 export function clearAuth() {
   clearAuthStorage();
+  notifyAuthChanged();
 }
 
 export function isAuthenticated(): boolean {
   return !!readAuthToken();
+}
+
+export function authChangeEventName(): string {
+  return AUTH_EVENT;
+}
+
+export async function validateAdminAuth(username: string, password: string): Promise<'ok' | 'invalid'> {
+  const res = await fetch(`${API_BASE}/clients`, {
+    headers: { 'Authorization': `Basic ${btoa(`${username}:${password}`)}` },
+  });
+  if (res.status === 401) return 'invalid';
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}`);
+  }
+  return 'ok';
 }
 
 // Clients
