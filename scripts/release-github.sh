@@ -151,6 +151,10 @@ VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 TARGET_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+if [[ "$DO_UPLOAD" -eq 1 && -n "$TAG" ]]; then
+  # For release builds, stamp binaries with the intended release tag.
+  VERSION="$TAG"
+fi
 LDFLAGS="-s -w \
   -X github.com/machinemon/machinemon/internal/version.Version=${VERSION} \
   -X github.com/machinemon/machinemon/internal/version.Commit=${COMMIT} \

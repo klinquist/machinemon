@@ -66,6 +66,14 @@ function displayName(client: Client): string {
   return client.custom_name?.trim() || client.hostname;
 }
 
+function clientVersionLabel(version: string): string {
+  const trimmed = (version || '').trim();
+  if (!trimmed) return 'client unknown';
+  if (trimmed.startsWith('v')) return `client ${trimmed}`;
+  if (/^\d/.test(trimmed)) return `client v${trimmed}`;
+  return `client ${trimmed}`;
+}
+
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -294,7 +302,9 @@ export default function ClientDetail() {
             </button>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">{client.os}/{client.arch}</span>
+            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
+              {client.os}/{client.arch} • {clientVersionLabel(client.client_version)}
+            </span>
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded" title={isoTooltip(client.session_started_at)}>
               uptime {formatFriendlyDuration(client.session_started_at)}
             </span>

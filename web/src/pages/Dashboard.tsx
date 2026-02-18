@@ -47,6 +47,14 @@ function clientLabel(client: ClientWithMetrics): string {
   return client.custom_name?.trim() || client.hostname;
 }
 
+function clientVersionLabel(version: string): string {
+  const trimmed = (version || '').trim();
+  if (!trimmed) return 'client unknown';
+  if (trimmed.startsWith('v')) return `client ${trimmed}`;
+  if (/^\d/.test(trimmed)) return `client v${trimmed}`;
+  return `client ${trimmed}`;
+}
+
 function normalizePublicIP(ip?: string): string {
   return (ip || '').trim();
 }
@@ -180,7 +188,7 @@ export default function Dashboard() {
                       <span className="font-semibold text-gray-900">{clientLabel(client)}</span>
                     </div>
                     <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
-                      {client.os}/{client.arch}
+                      {client.os}/{client.arch} • {clientVersionLabel(client.client_version)}
                     </span>
                   </div>
                   {client.latest_metrics ? (
