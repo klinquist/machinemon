@@ -50,6 +50,10 @@ func (e *Engine) SendTestAlert(providerID int64) (*models.TestAlertResult, error
 
 // NotifyRestart fires an alert that a client process restarted (session_id changed).
 func (e *Engine) NotifyRestart(clientID, hostname string) {
+	client, err := e.store.GetClient(clientID)
+	if err == nil && client != nil {
+		hostname = clientLabel(client)
+	}
 	e.fireAlert(clientID, models.AlertTypeClientRestarted, models.SeverityWarning,
 		fmt.Sprintf("Client '%s' has restarted (new session detected)", hostname))
 }
@@ -99,6 +103,11 @@ func (e *Engine) checkOfflineClients() {
 		}
 
 		hostLabel := clientLabel(&c)
+		// Resolve label from the latest full client record so alert messages
+		// always prefer custom_name when set.
+		if latest, err := e.store.GetClient(c.ID); err == nil && latest != nil {
+			hostLabel = clientLabel(latest)
+		}
 		e.logger.Warn("client went offline", "client_id", c.ID, "hostname", hostLabel,
 			"last_seen", c.LastSeenAt, "threshold_seconds", thresholdSecs)
 		e.store.SetClientOnline(c.ID, false)
