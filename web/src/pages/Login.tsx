@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { setAuth } from '../api/client';
+import { clearAuth, setAuth } from '../api/client';
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const [password, setPassword] = useState('');
@@ -11,19 +11,20 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     setLoading(true);
     setError('');
 
-    setAuth('admin', password);
-
     try {
       const res = await fetch('/api/v1/admin/clients', {
         headers: { 'Authorization': `Basic ${btoa(`admin:${password}`)}` },
       });
       if (res.status === 401) {
+        clearAuth();
         setError('Invalid password');
         setLoading(false);
         return;
       }
+      setAuth('admin', password);
       onLogin();
     } catch {
+      clearAuth();
       setError('Cannot connect to server');
       setLoading(false);
     }

@@ -9,9 +9,46 @@ function normalizeBasePath(path: string): string {
 // Anchor API calls to the server-injected base path (if any), so calls work from nested routes too.
 const BASE_PATH = normalizeBasePath((window as any).__BASE_PATH__ || '');
 const API_BASE = `${BASE_PATH}/api/v1/admin`;
+const AUTH_KEY = 'machinemon_auth';
+const AUTH_EXP_KEY = 'machinemon_auth_expires_at';
+const AUTH_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+
+function clearAuthStorage() {
+  localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(AUTH_EXP_KEY);
+  // Legacy/session-only compatibility cleanup.
+  sessionStorage.removeItem(AUTH_KEY);
+}
+
+function readAuthToken(): string | null {
+  const stored = localStorage.getItem(AUTH_KEY);
+  if (stored) {
+    const rawExpires = localStorage.getItem(AUTH_EXP_KEY);
+    if (!rawExpires) {
+      localStorage.setItem(AUTH_EXP_KEY, String(Date.now() + AUTH_TTL_MS));
+      return stored;
+    }
+    const expiresAt = Number(rawExpires);
+    if (Number.isFinite(expiresAt) && Date.now() < expiresAt) {
+      return stored;
+    }
+    clearAuthStorage();
+    return null;
+  }
+
+  // Migrate old session-only auth to persistent auth.
+  const legacy = sessionStorage.getItem(AUTH_KEY);
+  if (legacy) {
+    localStorage.setItem(AUTH_KEY, legacy);
+    localStorage.setItem(AUTH_EXP_KEY, String(Date.now() + AUTH_TTL_MS));
+    sessionStorage.removeItem(AUTH_KEY);
+    return legacy;
+  }
+  return null;
+}
 
 function getAuthHeaders(): HeadersInit {
-  const creds = sessionStorage.getItem('machinemon_auth');
+  const creds = readAuthToken();
   if (!creds) throw new AuthError();
   return {
     'Authorization': `Basic ${creds}`,
@@ -40,15 +77,17 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function setAuth(username: string, password: string) {
-  sessionStorage.setItem('machinemon_auth', btoa(`${username}:${password}`));
+  localStorage.setItem(AUTH_KEY, btoa(`${username}:${password}`));
+  localStorage.setItem(AUTH_EXP_KEY, String(Date.now() + AUTH_TTL_MS));
+  sessionStorage.removeItem(AUTH_KEY);
 }
 
 export function clearAuth() {
-  sessionStorage.removeItem('machinemon_auth');
+  clearAuthStorage();
 }
 
 export function isAuthenticated(): boolean {
-  return !!sessionStorage.getItem('machinemon_auth');
+  return !!readAuthToken();
 }
 
 // Clients
