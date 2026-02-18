@@ -6,12 +6,10 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 func RunDaemon(cfg *Config, configPath string, logger *slog.Logger) {
-	sessionID := uuid.New().String()
+	sessionID := bootSessionID()
 	reporter := NewReporter(cfg.ServerURL, cfg.Password, cfg.InsecureSkipTLS)
 	interval := time.Duration(cfg.CheckInInterval) * time.Second
 

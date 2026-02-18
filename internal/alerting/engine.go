@@ -48,14 +48,14 @@ func (e *Engine) SendTestAlert(providerID int64) (*models.TestAlertResult, error
 	return e.dispatcher.SendTestAlert(providerID)
 }
 
-// NotifyRestart fires an alert that a client process restarted (session_id changed).
+// NotifyRestart fires an alert when a client session_id changes.
 func (e *Engine) NotifyRestart(clientID, hostname string) {
 	client, err := e.store.GetClient(clientID)
 	if err == nil && client != nil {
 		hostname = clientLabel(client)
 	}
 	e.fireAlert(clientID, models.AlertTypeClientRestarted, models.SeverityWarning,
-		fmt.Sprintf("Client '%s' has restarted (new session detected)", hostname))
+		fmt.Sprintf("Client '%s' has a new session (session change detected)", hostname))
 }
 
 // Run starts the alert engine background loop.
