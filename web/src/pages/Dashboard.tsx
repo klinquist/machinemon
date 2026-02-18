@@ -189,18 +189,15 @@ export default function Dashboard() {
                     className={`${cardClasses} rounded-lg transition-all p-4 block`}
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <StatusDot online={client.is_online} muted={client.alerts_muted} />
-                        <span className="font-semibold text-gray-900">{clientLabel(client)}</span>
+                        <span className="font-semibold text-gray-900 truncate whitespace-nowrap" title={clientLabel(client)}>
+                          {clientLabel(client)}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2 min-w-0">
-                        {offline && (
-                          <span className="text-[10px] uppercase font-bold tracking-wider text-red-700 bg-red-100 border border-red-300 px-2 py-0.5 rounded">
-                            Offline
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2 min-w-0 shrink-0 pl-2">
                         <span
-                          className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap max-w-[16rem] truncate"
+                          className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap max-w-[14rem] truncate"
                           title={`${client.os}/${client.arch} • ${clientVersionLabel(client.client_version)}`}
                         >
                           {client.os}/{client.arch} • {clientVersionLabel(client.client_version)}
