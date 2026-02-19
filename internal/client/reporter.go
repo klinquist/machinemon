@@ -59,6 +59,7 @@ func (r *Reporter) CheckIn(clientID, sessionID string, metrics *SystemMetrics, p
 		ClientVersion: version.Version,
 		ClientID:      clientID,
 		SessionID:     sessionID,
+		BootTimeUnix:  bootTimeUnix(),
 		InterfaceIPs:  interfaceIPs,
 		Metrics: models.MetricsPayload{
 			CPUPercent:     metrics.CPUPercent,

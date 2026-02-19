@@ -57,6 +57,18 @@ func decodeInterfaceIPs(raw string) []string {
 	return ips
 }
 
+func sessionStartAt(now time.Time, bootTimeUnix int64) time.Time {
+	if bootTimeUnix <= 0 {
+		return now
+	}
+	start := time.Unix(bootTimeUnix, 0).UTC()
+	// Guard against obviously invalid future timestamps from skewed client clocks.
+	if start.After(now.Add(5 * time.Minute)) {
+		return now
+	}
+	return start
+}
+
 func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(wal)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
 	if err != nil {
@@ -108,6 +120,7 @@ func (s *SQLiteStore) migrate() error {
 
 func (s *SQLiteStore) UpsertClient(req models.CheckInRequest, publicIP string) (string, bool, bool, error) {
 	now := time.Now().UTC()
+	startedAt := sessionStartAt(now, req.BootTimeUnix)
 	interfaceIPsJSON := encodeInterfaceIPs(req.InterfaceIPs)
 
 	// If client has an ID, try to update it
@@ -115,9 +128,8 @@ func (s *SQLiteStore) UpsertClient(req models.CheckInRequest, publicIP string) (
 		var isOnline bool
 		var isDeleted bool
 		var oldSessionID sql.NullString
-		var oldSessionStartedAt sql.NullTime
-		err := s.db.QueryRow("SELECT is_online, is_deleted, session_id, session_started_at FROM clients WHERE id = ?", req.ClientID).
-			Scan(&isOnline, &isDeleted, &oldSessionID, &oldSessionStartedAt)
+		err := s.db.QueryRow("SELECT is_online, is_deleted, session_id FROM clients WHERE id = ?", req.ClientID).
+			Scan(&isOnline, &isDeleted, &oldSessionID)
 		if err == nil {
 			// Client exists - update it
 			wasOffline := !isOnline
@@ -127,7 +139,7 @@ func (s *SQLiteStore) UpsertClient(req models.CheckInRequest, publicIP string) (
 				session_started_at = CASE WHEN ? THEN ? ELSE COALESCE(session_started_at, ?) END
 				WHERE id = ?`,
 				req.Hostname, req.OS, req.Arch, req.ClientVersion, now, req.SessionID, publicIP, interfaceIPsJSON,
-				sessionChanged, now, now, req.ClientID)
+				sessionChanged, startedAt, startedAt, req.ClientID)
 			if err != nil {
 				return "", false, false, fmt.Errorf("update client: %w", err)
 			}
@@ -140,7 +152,7 @@ func (s *SQLiteStore) UpsertClient(req models.CheckInRequest, publicIP string) (
 	id := uuid.New().String()
 	_, err := s.db.Exec(`INSERT INTO clients (id, hostname, os, arch, client_version, first_seen_at, last_seen_at, session_started_at, is_online, session_id, public_ip, interface_ips)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-		id, req.Hostname, req.OS, req.Arch, req.ClientVersion, now, now, now, req.SessionID, publicIP, interfaceIPsJSON)
+		id, req.Hostname, req.OS, req.Arch, req.ClientVersion, now, now, startedAt, req.SessionID, publicIP, interfaceIPsJSON)
 	if err != nil {
 		return "", false, false, fmt.Errorf("insert client: %w", err)
 	}

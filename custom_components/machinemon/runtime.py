@@ -24,6 +24,23 @@ from .const import CONF_CLIENT_ID, DEFAULT_CHECKIN_INTERVAL
 _LOGGER = logging.getLogger(__name__)
 
 
+def _boot_time_unix() -> int:
+    """Return host boot time as unix seconds, or 0 when unavailable."""
+    try:
+        boot_time = int(psutil.boot_time())
+    except (OSError, ValueError):
+        return 0
+    return boot_time if boot_time > 0 else 0
+
+
+def _boot_session_id(hostname: str, boot_time_unix: int) -> str:
+    """Return a deterministic session id for the current host boot."""
+    host = hostname.strip()
+    if host and boot_time_unix > 0:
+        return str(uuid.uuid5(uuid.NAMESPACE_OID, f"{host}:{boot_time_unix}"))
+    return str(uuid.uuid4())
+
+
 class MachineMonRuntime:
     """Background runtime that posts check-ins to MachineMon."""
 
@@ -31,7 +48,8 @@ class MachineMonRuntime:
         self._hass = hass
         self._entry = entry
         self._api = api
-        self._session_id = str(uuid.uuid4())
+        self._boot_time_unix = _boot_time_unix()
+        self._session_id = _boot_session_id(socket.gethostname(), self._boot_time_unix)
         self._client_id = str(entry.data[CONF_CLIENT_ID])
         self._password = str(entry.data[CONF_PASSWORD])
         self._lock = asyncio.Lock()
@@ -65,6 +83,7 @@ class MachineMonRuntime:
                 _build_checkin_payload,
                 self._client_id,
                 self._session_id,
+                self._boot_time_unix,
             )
 
             try:
@@ -84,7 +103,7 @@ class MachineMonRuntime:
                 self._hass.config_entries.async_update_entry(self._entry, data=data)
 
 
-def _build_checkin_payload(client_id: str, session_id: str) -> dict[str, Any]:
+def _build_checkin_payload(client_id: str, session_id: str, boot_time_unix: int) -> dict[str, Any]:
     """Build the check-in payload for the local host running Home Assistant."""
     virtual_mem = psutil.virtual_memory()
     disk_path = "C:\\" if platform.system().lower() == "windows" else "/"
@@ -97,6 +116,7 @@ def _build_checkin_payload(client_id: str, session_id: str) -> dict[str, Any]:
         "client_version": "ha-integration-0.1.0",
         "client_id": client_id,
         "session_id": session_id,
+        "boot_time_unix": boot_time_unix,
         "interface_ips": _interface_ips(),
         "metrics": {
             "cpu_pct": float(psutil.cpu_percent(interval=None)),

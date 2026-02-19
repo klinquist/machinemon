@@ -10,6 +10,7 @@ type CheckInRequest struct {
 	ClientVersion string           `json:"client_version"`
 	ClientID      string           `json:"client_id,omitempty"`
 	SessionID     string           `json:"session_id,omitempty"`
+	BootTimeUnix  int64            `json:"boot_time_unix,omitempty"`
 	InterfaceIPs  []string         `json:"interface_ips,omitempty"`
 	Metrics       MetricsPayload   `json:"metrics"`
 	Processes     []ProcessPayload `json:"processes"`

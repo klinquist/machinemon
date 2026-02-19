@@ -51,6 +51,7 @@ Use the same base URL clients should use to reach MachineMon.
 - Integration validates it can connect to your server and authenticate with the client password.
 - Home Assistant starts background check-ins to:
   - `POST /api/v1/checkin`
+- Reported uptime is tied to host boot time (so uptime remains accurate across internet outages).
 - MachineMon will show Home Assistant as a normal client.
 
 ## Troubleshooting
